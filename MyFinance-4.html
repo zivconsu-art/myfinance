@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#F8F9FB"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;My Finance&quot;,&quot;short_name&quot;:&quot;My Finance&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%23F8F9FB&quot;,&quot;theme_color&quot;:&quot;%23111827&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23111827'/%3E%3Ctext x='50%25' y='62%25' text-anchor='middle' font-family='serif' font-size='300' fill='white'%3EM%3C/text%3E%3C/svg%3E&quot;,&quot;sizes&quot;:&quot;512x512&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}"/>
+<title>My Finance</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+body{background:#F8F9FB;color:#111827;font-family:'DM Sans',sans-serif;overscroll-behavior:none;-webkit-overflow-scrolling:touch}
+input,button,select{font-family:'DM Sans',sans-serif;outline:none;-webkit-appearance:none}
+button{cursor:pointer;border:none;background:none}
+::-webkit-scrollbar{display:none}
+:root{
+  --bg:#F8F9FB;
+  --surface:#FFFFFF;
+  --surface2:#F3F4F6;
+  --border:#E5E7EB;
+  --border-subtle:#F0F1F3;
+  --text:#111827;
+  --text2:#6B7280;
+  --text3:#9CA3AF;
+  --accent:#111827;
+  --accent-light:#F3F4F6;
+  --green:#059669;
+  --green-bg:#ECFDF5;
+  --red:#DC2626;
+  --red-bg:#FEF2F2;
+  --amber:#D97706;
+  --amber-bg:#FFFBEB;
+  --purple:#7C3AED;
+  --purple-bg:#F5F3FF;
+  --blue:#2563EB;
+  --blue-bg:#EFF6FF;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.10),0 4px 8px rgba(0,0,0,0.04);
+  --radius:16px;
+  --radius-sm:10px;
+  --radius-xs:8px;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.fade-up{animation:fadeUp .35s ease both}
+.fade-up-1{animation-delay:.05s}
+.fade-up-2{animation-delay:.10s}
+.fade-up-3{animation-delay:.15s}
+.fade-up-4{animation-delay:.20s}
+.fade-up-5{animation-delay:.25s}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const {useState,useRef,useEffect,useCallback,useMemo}=React;
+
+const STORE_KEY='myfinance_v2';
+function loadState(){try{return JSON.parse(localStorage.getItem(STORE_KEY))||null;}catch{return null;}}
+function saveState(s){try{localStorage.setItem(STORE_KEY,JSON.stringify(s));}catch{}}
+
+const F=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const TODAY=new Date().getDate();
+const PSYCH_ORDER=['household','food','health','transport','savings','leisure','other'];
+
+const TR={
+  appTitle:{he:'הדשבורד',en:'Dashboard'},
+  add:{he:'הוסף',en:'Add'},
+  manual:{he:'✏️ הזנה ידנית',en:'✏️ Manual Entry'},
+  runDemo:{he:'טען נתוני דוגמה',en:'Load Demo Data'},
+  loading:{he:'מנתח...',en:'Analyzing...'},
+  analyzingSub:{he:'AI קורא את העסקאות',en:'AI reading transactions'},
+  errRead:{he:'לא הצלחתי לקרוא. נסה שוב.',en:'Could not read. Please try again.'},
+  errNoKey:{he:'חסר API Key — הכנס בהגדרות ⚙️',en:'Missing API Key — add it in Settings ⚙️'},
+  monthlyIncome:{he:'הכנסה חודשית',en:'Monthly Income'},
+  addFile:{he:'העלה צילום מסך או PDF',en:'Upload Screenshot or PDF'},
+  uploadHint:{he:'כל בנק · BofA · Chase · Wells Fargo',en:'Any bank · BofA · Chase · Wells Fargo'},
+  incomeRow:{he:'הכנסה',en:'Income'},
+  incomeSub:{he:'משכורת / הכנסה',en:'Salary / Income'},
+  clearedRow:{he:'חויב סופית',en:'Cleared'},
+  clearedSub:{he:'עסקאות חויבו',en:'transactions cleared'},
+  procRow:{he:'בהמתנה',en:'Pending'},
+  procSub:{he:'טרם חויבו',en:'transactions pending'},
+  upcomingRow:{he:'תשלומים קבועים צפויים',en:'Upcoming Recurring'},
+  upcomingSub:{he:'לפני סוף חודש',en:'before month end'},
+  balanceNow:{he:'יתרה',en:'Balance'},
+  balanceSub:{he:'אחרי חיובים סופיים',en:'After cleared charges'},
+  safeSpend:{he:'זמין לשימוש',en:'Available to Spend'},
+  safeSub:{he:'אחרי כל ההורדות הצפויות',en:'After all upcoming charges'},
+  overspent:{he:'חריגה',en:'Overspent'},
+  overspentSub:{he:'ההוצאות עולות על ההכנסה',en:'Expenses exceed income'},
+  recurringTitle:{he:'תשלומים קבועים',en:'Upcoming Recurring'},
+  dueOn:{he:'ב-',en:'on '},
+  daysLeft:{he:'ימים',en:'days'},
+  procTitle:{he:'ממתין לחיוב',en:'Pending'},
+  catsTitle:{he:'פירוט לפי קטגוריה',en:'By Category'},
+  txWord:{he:'עסקאות',en:'txns'},
+  ofTotal:{he:'מהסה"כ',en:'of total'},
+  viewAll:{he:'הצג הכל',en:'View all'},
+  clearedTitle:{he:'חויב סופית',en:'Cleared'},
+  addMore:{he:'+ הוסף עוד',en:'+ Add more'},
+  unknownTx:{he:'לא מזוהה',en:'Unknown'},
+  whichCat:{he:'לאיזה קטגוריה?',en:'Which category?'},
+  skipAll:{he:'שייך הכל לאחר',en:'Assign all to Other'},
+  backToDash:{he:'← דשבורד',en:'← Dashboard'},
+  catTotal:{he:'סה"כ',en:'Total'},
+  allTx:{he:'כל העסקאות',en:'All Transactions'},
+  back:{he:'← חזרה',en:'← Back'},
+  manualTitle:{he:'הזנה ידנית',en:'Manual Entry'},
+  descLabel:{he:'שם העסק',en:'Merchant'},
+  descPh:{he:'לדוגמא: Walmart',en:'e.g. Walmart'},
+  amtLabel:{he:'סכום',en:'Amount'},
+  dateLabel:{he:'תאריך',en:'Date'},
+  statusLabel:{he:'סטטוס',en:'Status'},
+  catLabel:{he:'קטגוריה',en:'Category'},
+  addBtn:{he:'+ הוסף עסקה',en:'+ Add Transaction'},
+  doneBtn:{he:'סיום',en:'Done'},
+  recentAdded:{he:'נוספו לאחרונה',en:'Recently Added'},
+  catHousehold:{he:'משק בית',en:'Household'},
+  catFood:{he:'אוכל וקניות',en:'Food & Groceries'},
+  catHealth:{he:'בריאות',en:'Health'},
+  catTransport:{he:'תחבורה',en:'Transport'},
+  catSavings:{he:'חיסכון',en:'Savings'},
+  catLeisure:{he:'פנאי',en:'Leisure'},
+  catOther:{he:'אחר',en:'Other'},
+  onbTitle:{he:'ברוכים הבאים',en:'Welcome'},
+  onbSub:{he:'ניהול כספים פשוט וחכם',en:'Simple, smart finance tracking'},
+  onbName:{he:'שם (אופציונלי)',en:'Name (optional)'},
+  onbNamePh:{he:'השם שלך...',en:'Your name...'},
+  onbGender:{he:'פנייה',en:'Address'},
+  onbMale:{he:'זכר',en:'Male'},
+  onbFemale:{he:'נקבה',en:'Female'},
+  onbNeutral:{he:'ניטרלי',en:'Neutral'},
+  onbCurrency:{he:'מטבע',en:'Currency'},
+  onbLang:{he:'שפה',en:'Language'},
+  onbStart:{he:'התחל',en:'Get Started'},
+  greet:{he:'שלום',en:'Hey'},
+  editOrder:{he:'סדר',en:'Order'},
+  doneEdit:{he:'סיום',en:'Done'},
+  noTx:{he:'אין עסקאות',en:'no transactions'},
+  clearData:{he:'מחק את כל הנתונים',en:'Clear all data'},
+  confirmClear:{he:'בטוח? פעולה זו תמחק הכל.',en:'Sure? This deletes everything.'},
+  settings:{he:'הגדרות',en:'Settings'},
+  appName:{he:'שם האפליקציה',en:'App Name'},
+  saveSettings:{he:'שמור',en:'Save'},
+  resetOrder:{he:'איפוס לסדר המומלץ',en:'Reset to recommended'},
+  swipeBack:{he:'החלק ימינה לחזור',en:'Swipe right to go back'},
+  catMonth:{he:'עסקאות החודש',en:'transactions this month'},
+  screenshot:{he:'📸 צילום מסך',en:'📸 Screenshot'},
+  pdf:{he:'📄 PDF',en:'📄 PDF'},
+};
+const t=(k,l)=>TR[k]?.[l]||k;
+
+const getCats=lang=>[
+  {id:'household',label:t('catHousehold',lang),icon:'🏠',color:'#2563EB',bg:'#EFF6FF',keywords:['rent','lease','electric','water','gas','internet','insurance','utility','comcast','att','txu','centerpoint','reliant','zelle','check','payment']},
+  {id:'food',label:t('catFood',lang),icon:'🛒',color:'#059669',bg:'#ECFDF5',keywords:['walmart','kroger','heb','costco','target','whole foods','grocery','food','chick','mcdonald','burger','taco','subway','pizza','starbucks','coffee','dunkin','restaurant','cafe','kitchen','grill','bbq','sushi','chipotle','whataburger','smoke']},
+  {id:'health',label:t('catHealth',lang),icon:'💊',color:'#DC2626',bg:'#FEF2F2',keywords:['pharmacy','walgreens','cvs','rite aid','hospital','clinic','doctor','dental','medical','urgent care']},
+  {id:'transport',label:t('catTransport',lang),icon:'🚗',color:'#D97706',bg:'#FFFBEB',keywords:['shell','exxon','chevron','bp','valero','murphy','fuel','uber','lyft','parking','toll','auto','car wash','firestone','oil change','geico','progressive','state farm']},
+  {id:'savings',label:t('catSavings',lang),icon:'💰',color:'#0891B2',bg:'#ECFEFF',keywords:['savings','investment','fidelity','schwab','robinhood','crypto','bitcoin']},
+  {id:'leisure',label:t('catLeisure',lang),icon:'🎬',color:'#7C3AED',bg:'#F5F3FF',keywords:['netflix','hulu','disney','spotify','apple','amazon','cinema','movie','theater','gym','planet fitness','bar','club','hotel','airbnb','flight','airline']},
+  {id:'other',label:t('catOther',lang),icon:'📦',color:'#6B7280',bg:'#F9FAFB',keywords:[]},
+];
+
+const getRecurring=lang=>[
+  {keywords:['rent','lease'],label:'Rent',day:1,icon:'🏠'},
+  {keywords:['geico','progressive','state farm','allstate','insurance'],label:'Car Insurance',day:15,icon:'🚗'},
+  {keywords:['netflix'],label:'Netflix',day:15,icon:'🎬'},
+  {keywords:['hulu'],label:'Hulu',day:20,icon:'📺'},
+  {keywords:['spotify'],label:'Spotify',day:10,icon:'🎵'},
+  {keywords:['planet fitness','la fitness','gym'],label:'Gym',day:1,icon:'💪'},
+  {keywords:['comcast','att','tmobile','verizon'],label:'Phone/Internet',day:20,icon:'📡'},
+  {keywords:['txu','centerpoint','reliant','electric'],label:'Electricity',day:5,icon:'⚡'},
+  {keywords:['loan','finance','ally','capital one auto'],label:'Loan',day:1,icon:'💳'},
+];
+
+function guessCat(desc,CATS){
+  if(!desc) return 'other';
+  const low=desc.toLowerCase();
+  for(const c of CATS) if(c.keywords.some(k=>low.includes(k))) return c.id;
+  return null;
+}
+function detectRecurring(txs,lang){
+  return getRecurring(lang).flatMap(r=>{
+    const hits=txs.filter(t=>r.keywords.some(k=>t.description.toLowerCase().includes(k)));
+    if(!hits.length) return [];
+    return [{...r,amount:hits.reduce((s,t)=>s+t.amount,0)/hits.length}];
+  });
+}
+function useSwipeBack(cb){
+  const sx=useRef(null),sy=useRef(null);
+  return{
+    onTouchStart:e=>{sx.current=e.touches[0].clientX;sy.current=e.touches[0].clientY;},
+    onTouchEnd:e=>{
+      if(!sx.current) return;
+      if(e.changedTouches[0].clientX-sx.current>80&&Math.abs(e.changedTouches[0].clientY-sy.current)<60)cb();
+      sx.current=null;
+    }
+  };
+}
+
+function MFLogo({size=36}){
+  return(
+    <div style={{width:size,height:size,borderRadius:'50%',border:'1.5px solid #111827',display:'flex',alignItems:'center',justifyContent:'center',background:'#111827',flexShrink:0}}>
+      <span style={{fontFamily:"'DM Serif Display',serif",fontSize:size*0.38,color:'#FFFFFF',letterSpacing:'-0.5px',lineHeight:1}}>M</span>
+    </div>
+  );
+}
+
+function Sparkline({txs,conv}){
+  if(txs.length<2) return null;
+  const sorted=[...txs].sort((a,b)=>a.date?.localeCompare(b.date)||0);
+  const amounts=sorted.map(t=>conv(t.amount));
+  const max=Math.max(...amounts)||1;
+  const W=120,H=36;
+  const pts=amounts.map((v,i)=>`${(i/(amounts.length-1))*W},${H-(v/max)*(H-4)}`).join(' ');
+  const fillPts=`0,${H} ${pts} ${W},${H}`;
+  return(
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{overflow:'visible'}}>
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#111827" stopOpacity="0.12"/>
+          <stop offset="100%" stopColor="#111827" stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <polygon points={fillPts} fill="url(#sg)"/>
+      <polyline points={pts} fill="none" stroke="#111827" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function Onboarding({onDone}){
+  const [name,setName]=useState('');
+  const [gender,setGender]=useState('neutral');
+  const [cur,setCur]=useState('usd');
+  const [lang,setLang]=useState('he');
+  const l=lang;
+  const inp={width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 16px',color:'var(--text)',fontSize:16,fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box',boxShadow:'var(--shadow-sm)'};
+  return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'28px 24px',paddingTop:'calc(28px + env(safe-area-inset-top))'}}>
+      <div style={{width:'100%',maxWidth:380}}>
+        <div className="fade-up" style={{textAlign:'center',marginBottom:40}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:8}}>
+            <MFLogo size={44}/>
+            <div style={{textAlign:'left'}}>
+              <div style={{fontSize:22,fontWeight:700,letterSpacing:'-0.5px',color:'var(--text)'}}>My Finance</div>
+              <div style={{fontSize:12,color:'var(--text3)',letterSpacing:'0.05em'}}>PERSONAL TRACKER</div>
+            </div>
+          </div>
+          <div style={{marginTop:20,width:40,height:1,background:'var(--border)',margin:'20px auto 0'}}/>
+          <div style={{fontSize:26,fontWeight:600,letterSpacing:'-0.5px',marginTop:20,color:'var(--text)'}}>{t('onbTitle',l)}</div>
+          <div style={{fontSize:14,color:'var(--text2)',marginTop:6}}>{t('onbSub',l)}</div>
+        </div>
+        <div className="fade-up fade-up-1" style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('onbLang',l)}</div>
+          <div style={{display:'flex',gap:8,background:'var(--surface2)',borderRadius:12,padding:4}}>
+            {[['he','🇮🇱 עברית'],['en','🇺🇸 English']].map(([v,label])=>(
+              <button key={v} onClick={()=>setLang(v)} style={{flex:1,padding:'11px',borderRadius:9,border:'none',fontSize:14,fontWeight:600,transition:'all .2s',background:lang===v?'var(--surface)':'transparent',color:lang===v?'var(--text)':'var(--text3)',boxShadow:lang===v?'var(--shadow-sm)':'none'}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="fade-up fade-up-2" style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('onbName',l)}</div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder={t('onbNamePh',l)} style={inp}/>
+        </div>
+        <div className="fade-up fade-up-3" style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('onbGender',l)}</div>
+          <div style={{display:'flex',gap:8,background:'var(--surface2)',borderRadius:12,padding:4}}>
+            {[['male',t('onbMale',l)],['female',t('onbFemale',l)],['neutral',t('onbNeutral',l)]].map(([v,label])=>(
+              <button key={v} onClick={()=>setGender(v)} style={{flex:1,padding:'11px 4px',borderRadius:9,border:'none',fontSize:13,fontWeight:600,transition:'all .2s',background:gender===v?'var(--surface)':'transparent',color:gender===v?'var(--text)':'var(--text3)',boxShadow:gender===v?'var(--shadow-sm)':'none'}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="fade-up fade-up-4" style={{marginBottom:32}}>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('onbCurrency',l)}</div>
+          <div style={{display:'flex',gap:8,background:'var(--surface2)',borderRadius:12,padding:4}}>
+            {[['usd','$ Dollar'],['ils','₪ Shekel']].map(([v,label])=>(
+              <button key={v} onClick={()=>setCur(v)} style={{flex:1,padding:'11px',borderRadius:9,border:'none',fontSize:14,fontWeight:600,transition:'all .2s',background:cur===v?'var(--surface)':'transparent',color:cur===v?'var(--text)':'var(--text3)',boxShadow:cur===v?'var(--shadow-sm)':'none'}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button className="fade-up fade-up-5" onClick={()=>onDone({name:name.trim(),gender,cur,lang})}
+          style={{width:'100%',background:'var(--accent)',border:'none',borderRadius:14,padding:'16px',color:'white',fontSize:16,fontWeight:600,letterSpacing:'-0.2px',boxShadow:'0 4px 20px rgba(17,24,39,0.25)',transition:'transform .15s,box-shadow .15s'}}
+          onTouchStart={e=>e.currentTarget.style.transform='scale(0.98)'}
+          onTouchEnd={e=>e.currentTarget.style.transform='scale(1)'}>
+          {t('onbStart',l)} →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ManualEntry({lang,CATS,txs,onAdd,onBack}){
+  const [desc,setDesc]=useState('');
+  const [amt,setAmt]=useState('');
+  const [date,setDate]=useState(new Date().toLocaleDateString('en-US',{month:'2-digit',day:'2-digit'}));
+  const [stat,setStat]=useState('cleared');
+  const [cat,setCat]=useState('other');
+  const save=()=>{
+    if(!desc||!amt) return;
+    onAdd({id:Date.now(),description:desc,amount:Math.abs(parseFloat(amt)),date,status:stat,categoryId:cat,confirmed:true});
+    setDesc(''); setAmt('');
+  };
+  const lbl={fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8};
+  const inp={width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 16px',color:'var(--text)',fontSize:16,fontFamily:"'JetBrains Mono',monospace",boxSizing:'border-box',boxShadow:'var(--shadow-sm)'};
+  return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',color:'var(--text)',paddingBottom:60}}>
+      <div style={{padding:'36px 24px 20px',paddingTop:'calc(36px + env(safe-area-inset-top))',borderBottom:'1px solid var(--border-subtle)',background:'var(--surface)'}}>
+        <button onClick={onBack} style={{color:'var(--text2)',fontSize:13,padding:0,marginBottom:16,display:'flex',alignItems:'center',gap:4}}>{t('back',lang)}</button>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <MFLogo size={28}/>
+          <div style={{fontSize:20,fontWeight:600,letterSpacing:'-0.3px'}}>{t('manualTitle',lang)}</div>
+        </div>
+      </div>
+      <div style={{padding:'20px 24px'}}>
+        {[{label:t('descLabel',lang),val:desc,set:setDesc,ph:t('descPh',lang),type:'text',mono:false},{label:t('amtLabel',lang),val:amt,set:setAmt,ph:'0.00',type:'number',mono:true},{label:t('dateLabel',lang),val:date,set:setDate,ph:'04/30',type:'text',mono:true}].map(f=>(
+          <div key={f.label} style={{marginBottom:16}}>
+            <div style={lbl}>{f.label}</div>
+            <input value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.ph} type={f.type}
+              style={{...inp,fontFamily:f.mono?"'JetBrains Mono',monospace":"'DM Sans',sans-serif"}}/>
+          </div>
+        ))}
+        <div style={{marginBottom:16}}>
+          <div style={lbl}>{t('statusLabel',lang)}</div>
+          <div style={{display:'flex',gap:8,background:'var(--surface2)',borderRadius:12,padding:4}}>
+            {[['cleared','✅ Cleared'],['processing','⏳ Processing']].map(([v,l])=>(
+              <button key={v} onClick={()=>setStat(v)} style={{flex:1,padding:'11px',borderRadius:9,border:'none',fontSize:13,fontWeight:600,transition:'all .2s',background:stat===v?'var(--surface)':'transparent',color:stat===v?'var(--text)':'var(--text3)',boxShadow:stat===v?'var(--shadow-sm)':'none'}}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:24}}>
+          <div style={lbl}>{t('catLabel',lang)}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {CATS.map(c=>(
+              <button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'12px',borderRadius:12,border:`1.5px solid ${cat===c.id?c.color:'var(--border)'}`,background:cat===c.id?c.bg:'var(--surface)',fontSize:13,fontWeight:600,color:cat===c.id?c.color:'var(--text2)',display:'flex',alignItems:'center',gap:8,boxShadow:cat===c.id?'var(--shadow-sm)':'none',transition:'all .15s'}}>
+                <span style={{fontSize:18}}>{c.icon}</span>{c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button onClick={save} style={{width:'100%',background:'var(--accent)',border:'none',borderRadius:14,padding:'15px',color:'white',fontSize:15,fontWeight:600,marginBottom:10,boxShadow:'0 2px 12px rgba(17,24,39,0.2)'}}>
+          {t('addBtn',lang)}
+        </button>
+        <button onClick={onBack} style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'13px',color:'var(--text2)',fontSize:14,fontWeight:500}}>
+          {t('doneBtn',lang)}
+        </button>
+        {txs.length>0&&(
+          <div style={{marginTop:24}}>
+            <div style={{...lbl,marginBottom:12}}>{t('recentAdded',lang)}</div>
+            <div style={{background:'var(--surface)',borderRadius:14,border:'1px solid var(--border)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+              {txs.slice(-5).reverse().map((tx,i,arr)=>(
+                <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',borderBottom:i<arr.length-1?'1px solid var(--border-subtle)':'none'}}>
+                  <div style={{fontSize:14,fontWeight:500}}>{tx.description}</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'var(--red)',fontFamily:"'JetBrains Mono',monospace"}}>-${F(tx.amount)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const saved=loadState();
+  const [txs,setTxs]=useState(saved?.txs||[]);
+  const [income,setIncome]=useState(saved?.income||'');
+  const [cur,setCur]=useState(saved?.cur||'usd');
+  const [lang,setLang]=useState(saved?.lang||'he');
+  const [user,setUser]=useState(saved?.user||{name:'',gender:'neutral'});
+  const [catOrder,setCatOrder]=useState(saved?.catOrder||PSYCH_ORDER);
+  const [appName,setAppName]=useState(saved?.appName||'My Finance');
+  const [apiKey,setApiKey]=useState(saved?.apiKey||'');
+  const [pend,setPend]=useState([]);
+  const [loading,setLoad]=useState(false);
+  const [err,setErr]=useState('');
+  const [openAcc,setOpenAcc]=useState(null);
+  const [screen,setScreen]=useState(saved?'home':'onboard');
+  const [catDet,setCatDet]=useState(null);
+  const [showSettings,setShowSettings]=useState(false);
+  const fileRef=useRef();
+
+  useEffect(()=>{saveState({txs,income,cur,lang,user,catOrder,appName,apiKey});},[txs,income,cur,lang,user,catOrder,appName,apiKey]);
+
+  const sym=cur==='usd'?'$':'₪';
+  const conv=a=>cur==='ils'?a*3.7:a;
+  const CATS=getCats(lang);
+
+  const cleared=txs.filter(t=>t.status==='cleared');
+  const proc=txs.filter(t=>t.status==='processing');
+  const tCleared=cleared.reduce((s,t)=>s+conv(t.amount),0);
+  const tProc=proc.reduce((s,t)=>s+conv(t.amount),0);
+  const inc=conv(parseFloat(income)||0);
+  const recurring=detectRecurring(txs,lang);
+  const upcoming=recurring.filter(r=>r.day>TODAY);
+  const tUpcoming=upcoming.reduce((s,r)=>s+conv(r.amount),0);
+  const balance=inc-tCleared;
+  const safe=inc-tCleared-tProc-tUpcoming;
+  const tAll=txs.reduce((s,t)=>s+conv(t.amount),0);
+  const catTotals=CATS.map(c=>({...c,total:txs.filter(t=>t.categoryId===c.id).reduce((s,t)=>s+conv(t.amount),0),count:txs.filter(t=>t.categoryId===c.id).length})).filter(c=>c.total>0).sort((a,b)=>catOrder.indexOf(a.id)-catOrder.indexOf(b.id));
+
+  const swHome=useSwipeBack(()=>setScreen('home'));
+
+  const processImage=async(b64,mt)=>{
+    if(!apiKey){setErr(t('errNoKey',lang));return;}
+    setLoad(true);setErr('');
+    try{
+      const block=mt==='application/pdf'
+        ?{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}}
+        :{type:'image',source:{type:'base64',media_type:mt||'image/jpeg',data:b64}};
+      const r=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key':apiKey,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,
+          messages:[{role:'user',content:[block,{type:'text',text:'Extract ALL bank transactions. Return ONLY JSON: {"transactions":[{"description":"clean merchant name","amount":12.50,"date":"04/30","status":"processing or cleared"}]}. Amount positive. Status=processing if "Processing" shown.'}]}]
+        })
+      });
+      const data=await r.json();
+      const raw=data.content?.map(b=>b.text||'').join('')||'';
+      const parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+      const C2=getCats(lang);
+      const list=(parsed.transactions||[]).map((t,i)=>({id:Date.now()+i,description:t.description,amount:Math.abs(parseFloat(t.amount)||0),date:t.date||'',status:t.status||'cleared',categoryId:guessCat(t.description,C2),confirmed:guessCat(t.description,C2)!==null}));
+      setTxs(p=>[...p,...list.filter(t=>t.confirmed)]);
+      setPend(list.filter(t=>!t.confirmed));
+      setScreen(list.some(t=>!t.confirmed)?'review':'home');
+    }catch(e){setErr(t('errRead',lang));}
+    finally{setLoad(false);}
+  };
+
+  const handleFile=f=>{const reader=new FileReader();const mt=f.type||'image/jpeg';reader.onload=e=>processImage(e.target.result.split(',')[1],mt);reader.readAsDataURL(f);};
+
+  const assign=(id,catId)=>{
+    const tx=pend.find(p=>p.id===id);if(!tx) return;
+    setTxs(p=>[...p,{...tx,categoryId:catId,confirmed:true}]);
+    setPend(p=>p.filter(x=>x.id!==id));
+    if(pend.length===1) setScreen('home');
+  };
+
+  const loadDemo=()=>{
+    setTxs([
+      {id:1,description:'Shell Houston TX',amount:12.28,date:'04/30',status:'processing',categoryId:'transport',confirmed:true},
+      {id:2,description:'Burger King',amount:12.44,date:'04/30',status:'processing',categoryId:'food',confirmed:true},
+      {id:3,description:'Cashed Check',amount:589.00,date:'04/30',status:'processing',categoryId:'other',confirmed:true},
+      {id:4,description:'Zelle — Orpaz',amount:27.00,date:'04/30',status:'processing',categoryId:'household',confirmed:true},
+      {id:5,description:'Cloud 89 Smoke Shop',amount:19.47,date:'04/29',status:'processing',categoryId:'leisure',confirmed:true},
+      {id:6,description:'HEB Grocery',amount:127.45,date:'04/28',status:'cleared',categoryId:'food',confirmed:true},
+      {id:7,description:'Netflix',amount:15.99,date:'04/27',status:'cleared',categoryId:'leisure',confirmed:true},
+      {id:8,description:'Rent Payment',amount:1800.00,date:'04/01',status:'cleared',categoryId:'household',confirmed:true},
+      {id:9,description:'Uber Trip',amount:14.20,date:'04/25',status:'cleared',categoryId:'transport',confirmed:true},
+      {id:10,description:'CVS Pharmacy',amount:23.50,date:'04/24',status:'cleared',categoryId:'health',confirmed:true},
+      {id:11,description:'Geico Insurance',amount:187.00,date:'04/15',status:'cleared',categoryId:'transport',confirmed:true},
+      {id:12,description:'Planet Fitness',amount:24.99,date:'04/01',status:'cleared',categoryId:'leisure',confirmed:true},
+    ]);
+    setIncome('5000');setScreen('home');
+  };
+
+  const doExport=()=>{
+    const data=JSON.stringify({txs,income,cur,lang,user,catOrder,appName,apiKey},null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download='myfinance-backup.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const doImport=()=>{
+    const inp=document.createElement('input');
+    inp.type='file'; inp.accept='.json';
+    inp.onchange=e=>{
+      const f=e.target.files[0]; if(!f) return;
+      const r=new FileReader();
+      r.onload=ev=>{
+        try{
+          const d=JSON.parse(ev.target.result);
+          if(d.txs) setTxs(d.txs);
+          if(d.income) setIncome(d.income);
+          if(d.cur) setCur(d.cur);
+          if(d.lang) setLang(d.lang);
+          if(d.user) setUser(d.user);
+          if(d.catOrder) setCatOrder(d.catOrder);
+          if(d.appName) setAppName(d.appName);
+          if(d.apiKey) setApiKey(d.apiKey);
+          setShowSettings(false);
+        }catch(e){alert(lang==='he'?'קובץ לא תקין':'Invalid file');}
+      };
+      r.readAsText(f);
+    };
+    inp.click();
+  };
+
+  if(screen==='onboard') return <Onboarding onDone={p=>{setUser({name:p.name,gender:p.gender});setCur(p.cur);setLang(p.lang);setScreen('home');}}/>;
+
+  if(loading) return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+      <MFLogo size={48}/>
+      <div style={{marginTop:20,fontSize:15,fontWeight:600,color:'var(--text)'}}>{t('loading',lang)}</div>
+      <div style={{fontSize:13,color:'var(--text3)',marginTop:4}}>{t('analyzingSub',lang)}</div>
+      <div style={{marginTop:20,width:32,height:32,border:'2px solid var(--border)',borderTopColor:'var(--accent)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/>
+    </div>
+  );
+
+  if(screen==='manual') return <ManualEntry lang={lang} CATS={CATS} txs={txs} onAdd={tx=>setTxs(p=>[...p,tx])} onBack={()=>setScreen('home')}/>;
+
+  if(screen==='review'&&pend.length>0){
+    const cur2=pend[0];
+    return(
+      <div {...swHome} style={{minHeight:'100vh',background:'var(--bg)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div style={{width:'100%',maxWidth:400}}>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={{fontSize:12,color:'var(--text3)',letterSpacing:'0.05em',marginBottom:6}}>{pend.length} {t('unknownTx',lang)}</div>
+            <div style={{fontSize:22,fontWeight:700,letterSpacing:'-0.5px'}}>{t('whichCat',lang)}</div>
+          </div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:20,padding:24,marginBottom:16,textAlign:'center',boxShadow:'var(--shadow-md)'}}>
+            <span style={{fontSize:12,padding:'4px 12px',borderRadius:20,background:cur2?.status==='processing'?'var(--amber-bg)':'var(--green-bg)',color:cur2?.status==='processing'?'var(--amber)':'var(--green)',fontWeight:600}}>
+              {cur2?.status==='processing'?'⏳ Processing':'✅ Cleared'}
+            </span>
+            <div style={{fontSize:12,color:'var(--text3)',marginTop:16,marginBottom:4}}>{cur2?.date}</div>
+            <div style={{fontSize:17,fontWeight:600,marginBottom:16,color:'var(--text)'}}>{cur2?.description}</div>
+            <div style={{fontSize:40,fontWeight:700,color:'var(--text)',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'-1px'}}>${F(cur2?.amount)}</div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {CATS.map(c=>(
+              <button key={c.id} onClick={()=>assign(cur2.id,c.id)}
+                style={{background:'var(--surface)',border:'1.5px solid var(--border)',borderRadius:14,padding:'14px 10px',textAlign:'center',transition:'all .15s',boxShadow:'var(--shadow-sm)'}}
+                onTouchStart={e=>{e.currentTarget.style.borderColor=c.color;e.currentTarget.style.background=c.bg;}}
+                onTouchEnd={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--surface)';assign(cur2.id,c.id);}}>
+                <div style={{fontSize:24}}>{c.icon}</div>
+                <div style={{fontSize:12,color:'var(--text2)',marginTop:5,fontWeight:500}}>{c.label}</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>{setTxs(p=>[...p,...pend.map(x=>({...x,categoryId:'other',confirmed:true}))]);setPend([]);setScreen('home');}}
+            style={{width:'100%',marginTop:12,background:'none',border:'none',color:'var(--text3)',fontSize:13,padding:10}}>
+            {t('skipAll',lang)}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if(screen==='catDetail'&&catDet){
+    const c=CATS.find(c=>c.id===catDet);
+    const catTxs=txs.filter(t=>t.categoryId===catDet).sort((a,b)=>b.amount-a.amount);
+    const total=catTxs.reduce((s,t)=>s+conv(t.amount),0);
+    const clr=catTxs.filter(t=>t.status==='cleared');
+    const prc=catTxs.filter(t=>t.status==='processing');
+    return(
+      <div style={{minHeight:'100vh',background:'var(--bg)',paddingBottom:60}}>
+        <div style={{padding:'36px 24px 20px',paddingTop:'calc(36px + env(safe-area-inset-top))',borderBottom:'1px solid var(--border-subtle)',background:'var(--surface)'}}>
+          <button onClick={()=>{setScreen('home');setCatDet(null);}} style={{color:'var(--text2)',fontSize:13,padding:0,marginBottom:16}}>{t('backToDash',lang)}</button>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <div style={{width:48,height:48,borderRadius:14,background:c?.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26}}>{c?.icon}</div>
+            <div>
+              <div style={{fontSize:22,fontWeight:700,letterSpacing:'-0.3px'}}>{c?.label}</div>
+              <div style={{fontSize:13,color:'var(--text3)'}}>{catTxs.length} {t('catMonth',lang)}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{padding:'20px 24px'}}>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:18,padding:'18px 20px',marginBottom:16,boxShadow:'var(--shadow-sm)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div style={{fontSize:13,color:'var(--text3)'}}>{t('catTotal',lang)}</div>
+              <div style={{fontSize:28,fontWeight:700,color:c?.color,fontFamily:"'JetBrains Mono',monospace",letterSpacing:'-1px'}}>{sym}{F(total)}</div>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <div style={{flex:1,background:'var(--green-bg)',borderRadius:10,padding:'12px 14px'}}>
+                <div style={{fontSize:10,color:'var(--text3)',marginBottom:4,letterSpacing:'0.05em'}}>CLEARED</div>
+                <div style={{fontSize:17,fontWeight:700,color:'var(--green)',fontFamily:"'JetBrains Mono',monospace"}}>{sym}{F(clr.reduce((s,t)=>s+conv(t.amount),0))}</div>
+                <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{clr.length} txns</div>
+              </div>
+              {prc.length>0&&(
+                <div style={{flex:1,background:'var(--amber-bg)',borderRadius:10,padding:'12px 14px'}}>
+                  <div style={{fontSize:10,color:'var(--text3)',marginBottom:4,letterSpacing:'0.05em'}}>PENDING</div>
+                  <div style={{fontSize:17,fontWeight:700,color:'var(--amber)',fontFamily:"'JetBrains Mono',monospace"}}>{sym}{F(prc.reduce((s,t)=>s+conv(t.amount),0))}</div>
+                  <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{prc.length} txns</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{t('allTx',lang)}</div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+            {catTxs.map((tx,i)=>(
+              <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 16px',borderBottom:i<catTxs.length-1?'1px solid var(--border-subtle)':'none'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:tx.status==='processing'?'var(--amber)':'var(--green)',flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:500,color:'var(--text)'}}>{tx.description}</div>
+                    <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{tx.date} · {tx.status==='processing'?'Pending':'Cleared'}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:15,fontWeight:600,color:'var(--text)',fontFamily:"'JetBrains Mono',monospace"}}>-{sym}{F(conv(tx.amount))}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isOverspent=safe<0;
+
+  return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',color:'var(--text)',paddingBottom:'calc(32px + env(safe-area-inset-bottom))'}}
+      onClick={()=>{setShowSettings(false);}}>
+
+      {/* SETTINGS SHEET */}
+      {showSettings&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.3)',zIndex:300,display:'flex',alignItems:'flex-end'}} onClick={()=>setShowSettings(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'var(--surface)',borderRadius:'20px 20px 0 0',padding:24,width:'100%',paddingBottom:'calc(24px + env(safe-area-inset-bottom))',boxShadow:'var(--shadow-lg)',maxHeight:'85vh',overflowY:'auto'}}>
+            <div style={{width:36,height:4,background:'var(--border)',borderRadius:4,margin:'0 auto 20px'}}/>
+            <div style={{fontSize:17,fontWeight:700,marginBottom:20}}>{t('settings',lang)}</div>
+
+            {/* Income */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('monthlyIncome',lang)}</div>
+              <input value={income} onChange={e=>setIncome(e.target.value)} type="number" placeholder="0"
+                style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 16px',color:'var(--text)',fontSize:18,fontFamily:"'JetBrains Mono',monospace",boxSizing:'border-box'}}/>
+            </div>
+
+            {/* App Name */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>{t('appName',lang)}</div>
+              <input value={appName} onChange={e=>setAppName(e.target.value)}
+                style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 16px',color:'var(--text)',fontSize:16,boxSizing:'border-box'}}/>
+            </div>
+
+            {/* API Key */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>🔑 API Key</div>
+              <input value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-..." type="password"
+                style={{width:'100%',background:'var(--surface2)',border:`1px solid ${apiKey?'var(--green)':'var(--border)'}`,borderRadius:12,padding:'13px 16px',color:'var(--text)',fontSize:14,fontFamily:"'JetBrains Mono',monospace",boxSizing:'border-box'}}/>
+              <div style={{fontSize:11,color:'var(--text3)',marginTop:6}}>
+                {apiKey
+                  ? (lang==='he'?'✅ מפתח שמור':'✅ Key saved')
+                  : (lang==='he'?'קבל מפתח חינם בـ console.anthropic.com':'Get free key at console.anthropic.com')
+                }
+              </div>
+            </div>
+
+            {/* Export / Import */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>
+                {lang==='he'?'גיבוי נתונים':'Data Backup'}
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={doExport} style={{flex:1,background:'var(--blue-bg)',border:'1px solid #BFDBFE',borderRadius:12,padding:'13px',color:'var(--blue)',fontSize:14,fontWeight:600}}>
+                  {lang==='he'?'📤 ייצוא':'📤 Export'}
+                </button>
+                <button onClick={doImport} style={{flex:1,background:'var(--green-bg)',border:'1px solid #A7F3D0',borderRadius:12,padding:'13px',color:'var(--green)',fontSize:14,fontWeight:600}}>
+                  {lang==='he'?'📥 ייבוא':'📥 Import'}
+                </button>
+              </div>
+            </div>
+
+            {/* Clear */}
+            <button onClick={()=>{if(window.confirm(t('confirmClear',lang))){setTxs([]);setIncome('');setCatOrder(PSYCH_ORDER);}setShowSettings(false);}}
+              style={{width:'100%',background:'var(--red-bg)',border:'1px solid #FECACA',borderRadius:12,padding:14,color:'var(--red)',fontSize:14,fontWeight:600}}>
+              {t('clearData',lang)}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <div style={{padding:'20px 20px 16px',paddingTop:'calc(20px + env(safe-area-inset-top))',background:'var(--surface)',borderBottom:'1px solid var(--border-subtle)',position:'sticky',top:0,zIndex:100}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <MFLogo size={32}/>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,letterSpacing:'-0.3px',color:'var(--text)'}}>{appName}</div>
+              {user.name&&<div style={{fontSize:11,color:'var(--text3)'}}>{t('greet',lang)}, {user.name}</div>}
+            </div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{display:'flex',background:'var(--surface2)',borderRadius:8,padding:2,border:'1px solid var(--border)'}}>
+              {['he','en'].map(l=>(
+                <button key={l} onClick={e=>{e.stopPropagation();setLang(l);}}
+                  style={{padding:'5px 9px',borderRadius:6,border:'none',fontSize:11,fontWeight:700,background:lang===l?'var(--surface)':'transparent',color:lang===l?'var(--text)':'var(--text3)',boxShadow:lang===l?'var(--shadow-sm)':'none',transition:'all .15s'}}>
+                  {l==='he'?'עב':'EN'}
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',background:'var(--surface2)',borderRadius:8,padding:2,border:'1px solid var(--border)'}}>
+              {[['usd','$'],['ils','₪']].map(([v,s])=>(
+                <button key={v} onClick={e=>{e.stopPropagation();setCur(v);}}
+                  style={{padding:'5px 10px',borderRadius:6,border:'none',fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,background:cur===v?'var(--surface)':'transparent',color:cur===v?'var(--text)':'var(--text3)',boxShadow:cur===v?'var(--shadow-sm)':'none',transition:'all .15s'}}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <button onClick={e=>{e.stopPropagation();setShowSettings(s=>!s);}}
+              style={{width:34,height:34,borderRadius:8,background:apiKey?'var(--green-bg)':'var(--surface2)',border:`1px solid ${apiKey?'#A7F3D0':'var(--border)'}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>
+              ⚙️
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{padding:'16px 20px 0'}}>
+
+        {txs.length===0&&(
+          <div className="fade-up">
+            {!apiKey&&(
+              <div style={{background:'var(--amber-bg)',border:'1px solid #FCD34D',borderRadius:14,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:20}}>🔑</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--amber)'}}>{lang==='he'?'נדרש API Key':'API Key Required'}</div>
+                  <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{lang==='he'?'הכנס מפתח בהגדרות ⚙️ כדי לנתח תמונות':'Add key in Settings ⚙️ to analyze images'}</div>
+                </div>
+              </div>
+            )}
+            <div style={{background:'var(--surface)',borderRadius:18,padding:'18px 20px',marginBottom:12,boxShadow:'var(--shadow-sm)',border:'1px solid var(--border)'}}>
+              <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{t('monthlyIncome',lang)}</div>
+              <div style={{position:'relative',display:'flex',alignItems:'center'}}>
+                <span style={{position:'absolute',left:14,color:'var(--text3)',fontSize:18,fontFamily:"'JetBrains Mono',monospace"}}>{sym}</span>
+                <input value={income} onChange={e=>setIncome(e.target.value)} placeholder="0.00" type="number"
+                  style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:12,padding:'13px 14px 13px 36px',color:'var(--text)',fontSize:22,fontFamily:"'JetBrains Mono',monospace",boxSizing:'border-box',letterSpacing:'-0.5px'}}/>
+              </div>
+            </div>
+            <button onClick={()=>fileRef.current.click()}
+              style={{width:'100%',background:'var(--surface)',border:'1.5px dashed var(--border)',borderRadius:18,padding:'28px 20px',textAlign:'center',boxShadow:'var(--shadow-sm)',marginBottom:12}}>
+              <div style={{fontSize:32,marginBottom:10}}>📸 📄</div>
+              <div style={{fontSize:15,fontWeight:600,color:'var(--text)',marginBottom:5}}>{t('addFile',lang)}</div>
+              <div style={{fontSize:12,color:'var(--text3)',marginBottom:14}}>{t('uploadHint',lang)}</div>
+              <span style={{background:'var(--accent)',color:'white',borderRadius:10,padding:'10px 20px',fontSize:13,fontWeight:600}}>{t('add',lang)}</span>
+            </button>
+            <button onClick={()=>setScreen('manual')}
+              style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'14px',color:'var(--text2)',fontSize:14,fontWeight:500,marginBottom:12,boxShadow:'var(--shadow-sm)'}}>
+              ✏️ {lang==='he'?'הזנה ידנית':'Manual Entry'}
+            </button>
+            <button onClick={loadDemo}
+              style={{width:'100%',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:14,padding:'14px',color:'var(--text3)',fontSize:13,fontWeight:500}}>
+              {t('runDemo',lang)}
+            </button>
+          </div>
+        )}
+
+        {txs.length>0&&(
+          <>
+            <div className="fade-up" style={{background:'var(--surface)',borderRadius:20,padding:'20px',marginBottom:12,boxShadow:'var(--shadow-md)',border:'1px solid var(--border)'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                <div>
+                  <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:2}}>
+                    {new Date().toLocaleDateString(lang==='he'?'he-IL':'en-US',{month:'long',year:'numeric'})}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text3)'}}>
+                    {lang==='he'?'30 ימים אחרונים':'Last 30 days'}
+                  </div>
+                </div>
+                <Sparkline txs={cleared} conv={conv}/>
+              </div>
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>{t('balanceNow',lang)}</div>
+                <div style={{fontSize:38,fontWeight:700,letterSpacing:'-2px',fontFamily:"'JetBrains Mono',monospace",color:'var(--text)',lineHeight:1}}>
+                  {sym}{F(Math.abs(balance))}
+                </div>
+                <div style={{display:'flex',gap:16,marginTop:8}}>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{color:'var(--green)',fontSize:12}}>↑</span>
+                    <span style={{fontSize:13,fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'var(--green)'}}>{sym}{F(inc)}</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <span style={{color:'var(--red)',fontSize:12}}>↓</span>
+                    <span style={{fontSize:13,fontFamily:"'JetBrains Mono',monospace",fontWeight:600,color:'var(--red)'}}>{sym}{F(tCleared)}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{background:isOverspent?'var(--red-bg)':'var(--green-bg)',borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:isOverspent?'var(--red)':'var(--green)'}}>
+                    {isOverspent?t('overspent',lang):t('safeSpend',lang)}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>
+                    {isOverspent?t('overspentSub',lang):t('safeSub',lang)}
+                  </div>
+                </div>
+                <div style={{fontSize:22,fontWeight:700,color:isOverspent?'var(--red)':'var(--green)',fontFamily:"'JetBrains Mono',monospace",letterSpacing:'-0.5px'}}>
+                  {sym}{F(Math.abs(safe))}
+                </div>
+              </div>
+            </div>
+
+            <div className="fade-up fade-up-1" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              {[
+                {label:lang==='he'?'ממתין לחיוב':'Pending',val:`${sym}${F(tProc)}`,sub:`${proc.length} txns`,color:'var(--amber)',bg:'var(--amber-bg)',icon:'⏳'},
+                {label:lang==='he'?'תשלומים קרובים':'Upcoming',val:`${sym}${F(tUpcoming)}`,sub:`${upcoming.length} payments`,color:'var(--purple)',bg:'var(--purple-bg)',icon:'🔄'},
+              ].map(s=>(
+                <div key={s.label} style={{background:'var(--surface)',borderRadius:14,padding:'14px',border:'1px solid var(--border)',boxShadow:'var(--shadow-sm)'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+                    <div style={{width:28,height:28,borderRadius:8,background:s.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>{s.icon}</div>
+                    <div style={{fontSize:11,color:'var(--text3)',fontWeight:500}}>{s.label}</div>
+                  </div>
+                  <div style={{fontSize:19,fontWeight:700,color:s.color,fontFamily:"'JetBrains Mono',monospace",letterSpacing:'-0.5px'}}>{s.val}</div>
+                  <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {catTotals.length>0&&(
+              <div className="fade-up fade-up-2" style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{t('catsTitle',lang)}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {catTotals.map(c=>{
+                    const catTxs2=txs.filter(t=>t.categoryId===c.id);
+                    const isOpen=openAcc===`cat-${c.id}`;
+                    const pct=tAll>0?(c.total/tAll)*100:0;
+                    return(
+                      <div key={c.id}>
+                        <button onClick={()=>setOpenAcc(isOpen?null:`cat-${c.id}`)}
+                          style={{width:'100%',background:'var(--surface)',border:`1.5px solid ${isOpen?c.color:'var(--border)'}`,borderRadius:isOpen?'14px 14px 0 0':'14px',padding:'13px 16px',display:'flex',alignItems:'center',gap:10,boxShadow:'var(--shadow-sm)',transition:'all .2s'}}>
+                          <div style={{width:36,height:36,borderRadius:10,background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>{c.icon}</div>
+                          <div style={{flex:1,minWidth:0,textAlign:'left'}}>
+                            <div style={{fontSize:14,fontWeight:600,color:'var(--text)'}}>{c.label}</div>
+                            <div style={{height:3,background:'var(--surface2)',borderRadius:3,marginTop:5,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${pct}%`,background:c.color,borderRadius:3,transition:'width .4s ease'}}/>
+                            </div>
+                          </div>
+                          <div style={{textAlign:'right',flexShrink:0}}>
+                            <div style={{fontSize:15,fontWeight:700,color:c.color,fontFamily:"'JetBrains Mono',monospace"}}>{sym}{F(c.total)}</div>
+                            <div style={{fontSize:11,color:'var(--text3)'}}>{c.count} txns</div>
+                          </div>
+                        </button>
+                        {isOpen&&(
+                          <div style={{background:'var(--surface)',border:`1.5px solid ${c.color}`,borderTop:'none',borderRadius:'0 0 14px 14px',overflow:'hidden'}}>
+                            {catTxs2.map((tx,i)=>(
+                              <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:i<catTxs2.length-1?'1px solid var(--border-subtle)':'none'}}>
+                                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <div style={{width:7,height:7,borderRadius:'50%',background:tx.status==='processing'?'var(--amber)':'var(--green)',flexShrink:0}}/>
+                                  <div>
+                                    <div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{tx.description}</div>
+                                    <div style={{fontSize:11,color:'var(--text3)'}}>{tx.date}</div>
+                                  </div>
+                                </div>
+                                <div style={{fontSize:14,fontWeight:600,color:'var(--text)',fontFamily:"'JetBrains Mono',monospace"}}>-{sym}{F(conv(tx.amount))}</div>
+                              </div>
+                            ))}
+                            <button onClick={()=>{setCatDet(c.id);setScreen('catDetail');}}
+                              style={{width:'100%',padding:'12px 16px',background:'var(--surface2)',border:'none',borderTop:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',alignItems:'center',color:c.color,fontSize:13,fontWeight:600}}>
+                              <span>{t('viewAll',lang)} →</span>
+                              <span style={{fontFamily:"'JetBrains Mono',monospace"}}>{sym}{F(c.total)}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {upcoming.length>0&&(
+              <div className="fade-up fade-up-3" style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{t('recurringTitle',lang)}</div>
+                <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+                  {upcoming.map((r,i)=>(
+                    <div key={r.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',borderBottom:i<upcoming.length-1?'1px solid var(--border-subtle)':'none'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{width:34,height:34,borderRadius:10,background:'var(--purple-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>{r.icon}</div>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{r.label}</div>
+                          <div style={{fontSize:11,color:'var(--amber)'}}>Due {t('dueOn',lang)}{r.day} · {r.day-TODAY}d</div>
+                        </div>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:600,color:'var(--purple)',fontFamily:"'JetBrains Mono',monospace"}}>-{sym}{F(conv(r.amount))}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {proc.length>0&&(
+              <div className="fade-up fade-up-4" style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--text3)',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>{t('procTitle',lang)}</div>
+                <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:16,overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+                  {proc.slice().reverse().map((tx,i)=>{
+                    const c=CATS.find(c=>c.id===tx.categoryId);
+                    return(
+                      <div key={tx.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'13px 16px',borderBottom:i<proc.length-1?'1px solid var(--border-subtle)':'none'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:34,height:34,borderRadius:10,background:c?.bg||'var(--surface2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>{c?.icon}</div>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:500,color:'var(--text)'}}>{tx.description}</div>
+                            <div style={{fontSize:11,color:'var(--text3)'}}>{tx.date} · {c?.label}</div>
+                          </div>
+                        </div>
+                        <div style={{fontSize:14,fontWeight:600,color:'var(--amber)',fontFamily:"'JetBrains Mono',monospace"}}>-{sym}{F(conv(tx.amount))}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button onClick={()=>fileRef.current.click()}
+              style={{width:'100%',background:'var(--surface)',border:'1.5px dashed var(--border)',borderRadius:14,padding:'16px',textAlign:'center',color:'var(--text3)',fontSize:13,fontWeight:500,marginBottom:8,boxShadow:'var(--shadow-sm)'}}>
+              {t('addMore',lang)}
+            </button>
+            <button onClick={()=>setScreen('manual')}
+              style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:14,padding:'14px',textAlign:'center',color:'var(--text2)',fontSize:13,fontWeight:500}}>
+              ✏️ {t('manual',lang)}
+            </button>
+
+            {err&&<div style={{background:'var(--red-bg)',border:'1px solid #FECACA',borderRadius:12,padding:14,marginTop:12,fontSize:13,color:'var(--red)',textAlign:'center'}}>{err}</div>}
+          </>
+        )}
+      </div>
+
+      <input ref={fileRef} type="file" accept="image/*,.pdf,application/pdf" style={{display:'none'}} onChange={e=>{if(e.target.files[0])handleFile(e.target.files[0]);}}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
