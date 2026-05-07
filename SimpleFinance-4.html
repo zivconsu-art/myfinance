@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>SimpleFinance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#F3F0FB;min-height:100vh;font-family:'Segoe UI','Tahoma',Arial,sans-serif;color:#1A0A2E}
+input,button,select{font-family:inherit}
+input::placeholder{color:#B5AAD4}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#D8CEF5;border-radius:4px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sf-spinner{width:52px;height:52px;border:5px solid rgba(255,255,255,0.2);border-top:5px solid white;border-radius:50%;animation:spin 0.9s linear infinite}
+.fade-up{animation:fadeUp 0.4s ease}
+.slide-up{animation:slideUp 0.28s cubic-bezier(.4,0,.2,1)}
+.card{background:#fff;border-radius:18px;box-shadow:0 2px 12px rgba(108,31,201,0.07);border:1px solid #EDE8F8;transition:all 0.22s cubic-bezier(.4,0,.2,1)}
+.card.hoverable:hover{box-shadow:0 8px 28px rgba(108,31,201,0.14);transform:translateY(-2px);cursor:pointer}
+.overlay{position:fixed;inset:0;background:rgba(26,10,46,0.55);z-index:9000;display:flex;align-items:flex-end;backdrop-filter:blur(5px)}
+.sheet{background:#fff;width:100%;max-width:480px;margin:0 auto;border-radius:28px 28px 0 0;max-height:92vh;display:flex;flex-direction:column}
+.btn-grad{border:none;border-radius:18px;background:linear-gradient(135deg,#C92A8F,#6C1FC9);color:white;font-weight:800;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.btn-grad:hover{opacity:0.9;transform:translateY(-1px)}
+.toggle-track{width:44px;height:24px;border-radius:99px;position:relative;cursor:pointer;transition:background 0.3s;flex-shrink:0}
+.toggle-thumb{position:absolute;top:2px;width:20px;height:20px;border-radius:50%;background:white;transition:left 0.25s ease;box-shadow:0 1px 4px rgba(0,0,0,0.2)}
+.progress-wrap{background:#EDE8F8;border-radius:100px;overflow:hidden;width:100%}
+.progress-bar{height:100%;border-radius:100px;transition:width 0.8s cubic-bezier(.4,0,.2,1)}
+.nav-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;min-width:48px;padding-bottom:2px;transition:color 0.2s}
+.drawer-link{display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:14px;margin-bottom:4px;cursor:pointer;color:#7B6FA3;transition:background 0.15s}
+.drawer-link:hover{background:#F3F0FB}
+.settings-row{display:flex;align-items:center;padding:14px 18px;gap:14px;transition:background 0.15s;cursor:default}
+.settings-row.clickable:hover{background:#FAF8FF;cursor:pointer}
+.chip{padding:7px 16px;border-radius:99px;border:1.5px solid;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0;font-family:inherit}
+.range-chip{flex:1;padding:7px 4px;border-radius:10px;border:none;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;transition:all 0.18s}
+.modal-center{position:fixed;inset:0;background:rgba(26,10,46,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+#processing-overlay{position:fixed;inset:0;background:rgba(26,10,46,0.65);z-index:7000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;backdrop-filter:blur(8px)}
+#processing-overlay p{color:white;font-weight:700;font-size:16px}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+const LANGUAGES=[
+  {code:"EN",name:"English",local:"English",flag:"🇺🇸"},
+  {code:"HE",name:"Hebrew",local:"עברית",flag:"🇮🇱"},
+  {code:"ES",name:"Spanish",local:"Español",flag:"🇪🇸"},
+  {code:"FR",name:"French",local:"Français",flag:"🇫🇷"},
+  {code:"DE",name:"German",local:"Deutsch",flag:"🇩🇪"},
+  {code:"ZH",name:"Chinese",local:"中文",flag:"🇨🇳"},
+  {code:"AR",name:"Arabic",local:"العربية",flag:"🇸🇦"},
+  {code:"RU",name:"Russian",local:"Русский",flag:"🇷🇺"},
+  {code:"JP",name:"Japanese",local:"日本語",flag:"🇯🇵"},
+  {code:"PT",name:"Portuguese",local:"Português",flag:"🇧🇷"},
+  {code:"IT",name:"Italian",local:"Italiano",flag:"🇮🇹"},
+];
+
+const T_EN={
+  appName:"SimpleFinance",safeToSpend:"Safe to Spend",daily:"Daily",weekly:"Weekly",
+  totalBalance:"Total Liquidity",savingsGoals:"Goals",allBanks:"All Accounts",
+  home:"Home",activity:"Activity",stats:"Insights",settings:"Settings",
+  accuracy:"Last Sync: {date}",daysLeft:"Days Left",transactions:"Recent Activity",
+  noTransactions:"No transactions found",privacyToggle:"Blur sensitive data",
+  uploadStatement:"Upload Statement",uploadHint:"PDF or Screenshot",cancel:"Cancel",
+  monthlyBudget:"Monthly Budget",spent:"Spent",bills:"Bills",
+  goodMorning:"Good morning",goodAfternoon:"Good afternoon",goodEvening:"Good evening",
+  formula:"Balance − Bills − Goals − Spent ÷ Days Left",processing:"AI is analyzing your statement...",
+  searchLang:"Search language...",language:"Language",
+  income:"Income",expenses:"Expenses",spendingByCategory:"Spending by Category",
+  budgetOverview:"Budget Overview",linkedAccounts:"Linked Accounts",
+  monthlyOverview:"Monthly Overview",budgetUsed:"Budget Used",
+  upcomingBills:"Upcoming Bills",recurringPayments:"Recurring Payments",
+  recentActivity:"Recent Activity",viewAll:"View all →",
+  dueToday:"Due today",dueOn:"Due on the",ofMonth:"of each month",
+  search:"Search...",allTransactions:"All",noResults:"No transactions found",
+  confirmTitle:"Confirm Transactions",approve:"Approve & Sync",
+  found:"Found {n} new transactions",syncSuccess:"Synced! Safe to Spend updated.",
+  uploadPDF:"Upload PDF",uploadPhoto:"Upload Photo",manualEntry:"Manual Entry",
+  notifications:"Notifications",security:"Security",export:"Export Data",
+  notifDesc:"Manage push notifications and alerts for bills, payments and budget warnings.",
+  secDesc:"Change password, enable biometrics and two-factor authentication.",
+  exportDesc:"Export all your financial data as CSV or PDF file.",
+  accentColor:"Accent Color",comingSoon:"Coming soon!",account:"Account",
+  close:"Close",preferences:"Preferences",appearance:"Appearance",
+  safeToday:"Safe Today",safeWeekly:"This Week",
+  week:"Week",month:"Month",quarter:"Quarter",year:"Year",
+  updateStatement:"Update Statement",dashboard:"Dashboard",
+  profile:"Personal Details",firstName:"First Name",lastName:"Last Name",
+  nickname:"Nickname (optional)",email:"Email Address",phone:"Phone Number",
+  dob:"Date of Birth",gender:"Gender",male:"Male",female:"Female",other:"Other",
+  password:"Password",confirmPassword:"Confirm Password",saveProfile:"Save Changes",
+  required:"Required",deleteAccount:"Delete Account",
+  deleteAccountDesc:"This will permanently delete your account and ALL your data. This action cannot be undone.",
+  deleteConfirm:"Type DELETE to confirm",deleteBtn:"Permanently Delete",
+  profileSaved:"Profile saved!",passwordMismatch:"Passwords do not match",
+  ageTooYoung:"You must be at least 16 years old",
+  fieldRequired:"This field is required",invalidEmail:"Enter a valid email address",
+  invalidPhone:"Enter a valid phone number",editProfile:"Edit Profile",
+  manualEntryTitle:"Add Transaction",merchant:"Merchant / Description",
+  amount:"Amount ($)",date:"Date",category:"Category",addTransaction:"Add Transaction",
+  expenseType:"Expense",incomeType:"Income",
+  analysisError:"Could not read file. Please try manual entry.",
+  noTxFound:"No transactions detected. Try manual entry.",
+};
+
+const T_HE={
+  appName:"סימפל-פייננס",safeToSpend:"פנוי לבזבוז",daily:"יומי",weekly:"שבועי",
+  totalBalance:"יתרה נזילה",savingsGoals:"יעדי חיסכון",allBanks:"כל החשבונות",
+  home:"בית",activity:"פעילות",stats:"תובנות",settings:"הגדרות",
+  accuracy:"סונכרן: {date}",daysLeft:"ימים נותרו",transactions:"פעילות אחרונה",
+  noTransactions:"אין עסקאות עדיין",privacyToggle:"טשטש סכומים",
+  uploadStatement:"העלה דף חשבון",uploadHint:"PDF או צילום מסך",cancel:"ביטול",
+  monthlyBudget:"תקציב חודשי",spent:"הוצא",bills:"חיובים",
+  goodMorning:"בוקר טוב",goodAfternoon:"צהריים טובים",goodEvening:"ערב טוב",
+  formula:"יתרה − חיובים − יעדים − הוצאות ÷ ימים נותרים",processing:"הבינה המלאכותית מנתחת...",
+  searchLang:"חפש שפה...",language:"שפה",
+  income:"הכנסות",expenses:"הוצאות",spendingByCategory:"הוצאות לפי קטגוריה",
+  budgetOverview:"סקירת תקציב",linkedAccounts:"חשבונות מקושרים",
+  monthlyOverview:"סקירה חודשית",budgetUsed:"מהתקציב נוצל",
+  upcomingBills:"חיובים קרובים",recurringPayments:"תשלומים קבועים",
+  recentActivity:"פעילות אחרונה",viewAll:"← הצג הכל",
+  dueToday:"לתשלום היום",dueOn:"מגיע ב-",ofMonth:"לחודש",
+  search:"חיפוש...",allTransactions:"הכל",noResults:"לא נמצאו עסקאות",
+  confirmTitle:"אישור עסקאות",approve:"אשר וסנכרן",
+  found:"נמצאו {n} עסקאות חדשות",syncSuccess:"סונכרן! הפנוי לבזבוז עודכן.",
+  uploadPDF:"העלה PDF",uploadPhoto:"העלה תמונה",manualEntry:"הזנה ידנית",
+  notifications:"התראות",security:"אבטחה",export:"ייצוא נתונים",
+  notifDesc:"נהל התראות Push עבור חשבונות, תשלומים ואזהרות תקציב.",
+  secDesc:"שנה סיסמה, הפעל ביומטריה ואימות דו-שלבי.",
+  exportDesc:"ייצא את כל הנתונים הפיננסיים שלך כקובץ CSV או PDF.",
+  accentColor:"צבע עיקרי",comingSoon:"בקרוב!",account:"חשבון",
+  close:"סגור",preferences:"העדפות",appearance:"מראה",
+  safeToday:"פנוי היום",safeWeekly:"השבוע",
+  week:"שבוע",month:"חודש",quarter:"רבעון",year:"שנה",
+  updateStatement:"עדכן דף חשבון",dashboard:"לוח בקרה",
+  profile:"פרטים אישיים",firstName:"שם פרטי",lastName:"שם משפחה",
+  nickname:"כינוי (אופציונלי)",email:"כתובת אימייל",phone:"מספר טלפון",
+  dob:"תאריך לידה",gender:"מגדר",male:"זכר",female:"נקבה",other:"אחר",
+  password:"סיסמה",confirmPassword:"אישור סיסמה",saveProfile:"שמור שינויים",
+  required:"חובה",deleteAccount:"מחיקת חשבון",
+  deleteAccountDesc:"פעולה זו תמחק לצמיתות את חשבונך וכל הנתונים שלך. לא ניתן לבטל פעולה זו.",
+  deleteConfirm:"הקלד DELETE לאישור",deleteBtn:"מחק לצמיתות",
+  profileSaved:"הפרופיל נשמר!",passwordMismatch:"הסיסמאות אינן תואמות",
+  ageTooYoung:"עליך להיות בן 16 לפחות",
+  fieldRequired:"שדה זה הוא חובה",invalidEmail:"הכנס כתובת אימייל תקינה",
+  invalidPhone:"הכנס מספר טלפון תקין",editProfile:"עריכת פרופיל",
+  manualEntryTitle:"הוסף עסקה",merchant:"שם העסק / תיאור",
+  amount:"סכום ($)",date:"תאריך",category:"קטגוריה",addTransaction:"הוסף עסקה",
+  expenseType:"הוצאה",incomeType:"הכנסה",
+  analysisError:"לא ניתן לקרוא את הקובץ. נסה הזנה ידנית.",
+  noTxFound:"לא זוהו עסקאות. נסה הזנה ידנית.",
+};
+
+const T_MAP={EN:T_EN,HE:T_HE};
+function getT(lang){return T_MAP[lang]||T_EN;}
+
+const ACCENTS=[
+  {id:"purple",grad:"linear-gradient(135deg,#C92A8F,#6C1FC9)",primary:"#C92A8F"},
+  {id:"teal",  grad:"linear-gradient(135deg,#0EC97D,#0096A0)",primary:"#0EC97D"},
+  {id:"blue",  grad:"linear-gradient(135deg,#2563EB,#7C3AED)",primary:"#2563EB"},
+  {id:"orange",grad:"linear-gradient(135deg,#F97316,#DC2626)",primary:"#F97316"},
+];
+
+const CAT_ICONS={
+  Groceries:"🛒",Food:"🍔",Restaurant:"🍽️",Entertainment:"🎬",
+  Transport:"⛽",Shopping:"📦",Health:"💊",Income:"💰",
+  Rent:"🏠",Utilities:"⚡",Insurance:"🛡️",Subscription:"🔁",
+  Travel:"✈️",Education:"📚",Other:"💳",
+};
+
+const RANGE_DATA={
+  week:{income:1200,expenses:560,spent:560,monthlyData:[{month:"Mon",income:0,expenses:142},{month:"Tue",income:0,expenses:89},{month:"Wed",income:1200,expenses:65},{month:"Thu",income:0,expenses:112},{month:"Fri",income:0,expenses:34},{month:"Sat",income:0,expenses:78},{month:"Sun",income:0,expenses:40}]},
+  month:{income:4800,expenses:2240,spent:2240,monthlyData:[{month:"Nov",income:4800,expenses:3200},{month:"Dec",income:4800,expenses:4100},{month:"Jan",income:4800,expenses:3050},{month:"Feb",income:5600,expenses:3400},{month:"Mar",income:4800,expenses:3900},{month:"Apr",income:4800,expenses:2240}]},
+  quarter:{income:14400,expenses:9590,spent:9590,monthlyData:[{month:"Feb",income:5600,expenses:3400},{month:"Mar",income:4800,expenses:3900},{month:"Apr",income:4800,expenses:2240},{month:"May",income:4800,expenses:50}]},
+  year:{income:57600,expenses:41640,spent:41640,monthlyData:[{month:"May",income:4800,expenses:3100},{month:"Jul",income:4800,expenses:3800},{month:"Sep",income:5600,expenses:3400},{month:"Nov",income:4800,expenses:3200},{month:"Jan",income:4800,expenses:3050},{month:"Apr",income:4800,expenses:2240}]},
+};
+
+const C={
+  bg:"#F3F0FB",surface:"#FFFFFF",border:"#EDE8F8",
+  textPrimary:"#1A0A2E",textSecondary:"#7B6FA3",textMuted:"#B5AAD4",
+  success:"#0EC97D",danger:"#FF4B6E",warning:"#FFB800",
+  navH:64,
+};
+
+let STATE={
+  lang:"EN",isPrivacy:false,accentId:"purple",
+  selectedBankId:"all",timeRange:"month",
+  profile:{name:"Shai Asor",firstName:"Shai",lastName:"Asor",nickname:"",email:"shai@example.com",phone:"",dob:"",gender:"",avatar:"SA"},
+  banks:[
+    {id:"b1",name:"Chase Checking", balance:8450.50, color:"#1172BE"},
+    {id:"b2",name:"Bank of America",balance:12000.00,color:"#E31837"},
+    {id:"b3",name:"Amex Gold",      balance:5200.00, color:"#D4AF37"},
+  ],
+  goals:[
+    {id:"g1",title:"Hawaii Trip",target:5000, current:1200,deadline:"2026-08-15",icon:"🏖️"},
+    {id:"g2",title:"New Tesla",  target:45000,current:8000,deadline:"2027-01-01",icon:"🚗"},
+  ],
+  finances:{monthlyBudget:6500,spent:2240,monthlyRecurring:1850,savingsAllocated:500},
+  transactions:[
+    {id:1,merchant:"Netflix",     category:"Entertainment",amount:-19.99, date:"2026-05-01",icon:"🎬",bankId:"b1"},
+    {id:2,merchant:"Walmart",     category:"Groceries",   amount:-142.50,date:"2026-05-01",icon:"🛒",bankId:"b1"},
+    {id:3,merchant:"Work Payroll",category:"Income",      amount:4800.00,date:"2026-04-30",icon:"💰",bankId:"b2"},
+    {id:4,merchant:"Amazon",      category:"Shopping",    amount:-89.90, date:"2026-04-29",icon:"📦",bankId:"b3"},
+    {id:5,merchant:"Shell Gas",   category:"Transport",   amount:-65.00, date:"2026-04-28",icon:"⛽",bankId:"b1"},
+    {id:6,merchant:"Spotify",     category:"Entertainment",amount:-10.99,date:"2026-04-28",icon:"🎵",bankId:"b1"},
+    {id:7,merchant:"CVS Pharmacy",category:"Health",      amount:-34.20, date:"2026-04-27",icon:"💊",bankId:"b1"},
+    {id:8,merchant:"Target",      category:"Shopping",    amount:-112.00,date:"2026-04-26",icon:"🎯",bankId:"b3"},
+  ],
+  recurringItems:[
+    {id:1,name:"Netflix",      amount:19.99,  dueDay:1, icon:"🎬",color:"#E50914"},
+    {id:2,name:"Rent",         amount:2200.00,dueDay:1, icon:"🏠",color:"#FF6B6B"},
+    {id:3,name:"Electric",     amount:120.00, dueDay:18,icon:"⚡",color:"#F5A623"},
+    {id:4,name:"Car Insurance",amount:180.00, dueDay:15,icon:"🚗",color:"#4A90E2"},
+    {id:5,name:"Spotify",      amount:10.99,  dueDay:7, icon:"🎵",color:"#1DB954"},
+    {id:6,name:"Gym",          amount:45.00,  dueDay:5, icon:"💪",color:"#9B59B6"},
+  ],
+  monthlyData:RANGE_DATA.month.monthlyData,
+  categoryData:[
+    {name:"Rent",         amount:2200,color:"#FF6B6B",pct:42},
+    {name:"Groceries",    amount:420, color:"#F5A623",pct:16},
+    {name:"Transport",    amount:245, color:"#4A90E2",pct:9},
+    {name:"Entertainment",amount:135, color:"#9B59B6",pct:5},
+    {name:"Shopping",     amount:312, color:"#1ABC9C",pct:10},
+    {name:"Other",        amount:928, color:"#95A5A6",pct:18},
+  ],
+  insights:[],
+  snapshotDate:"05/02/2026",
+  isDeleted:false,
+  tab:"home",
+  history:[],
+};
+
+function getAccent(){return ACCENTS.find(a=>a.id===STATE.accentId)||ACCENTS[0];}
+function getT2(){return getT(STATE.lang);}
+function isRTL(){return STATE.lang==="HE"||STATE.lang==="AR";}
+
+function fmt(val){
+  if(STATE.isPrivacy)return"••••";
+  return"$"+Math.abs(val).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+
+function safeToSpend(){
+  const {monthlyBudget,spent,monthlyRecurring,savingsAllocated}=STATE.finances;
+  const now=new Date();
+  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const daysLeft=Math.max(1,daysInMonth-now.getDate());
+  const safeTotal=Math.max(0,monthlyBudget-monthlyRecurring-savingsAllocated-spent);
+  return{safeTotal,safeToday:safeTotal/daysLeft,safeWeekly:(safeTotal/daysLeft)*7,daysLeft};
+}
+
+function navigate(tab){
+  if(tab!==STATE.tab){STATE.history.push(STATE.tab);STATE.tab=tab;}
+  render();
+}
+function navTo(tab){STATE.history=[];STATE.tab=tab;render();}
+function goBack(){if(STATE.history.length===0)return;STATE.tab=STATE.history.pop();render();}
+
+// ═══════════════════════════════════════════════
+// HTML HELPERS
+// ═══════════════════════════════════════════════
+function h(tag,attrs,inner){
+  const a=Object.entries(attrs||{}).map(([k,v])=>{
+    if(k==="style"&&typeof v==="object")return` style="${Object.entries(v).map(([sk,sv])=>sk.replace(/([A-Z])/g,m=>'-'+m.toLowerCase())+':'+sv).join(';')}"`;
+    if(k.startsWith("data-"))return` ${k}="${v}"`;
+    if(k==="className")return` class="${v}"`;
+    if(typeof v==="boolean")return v?` ${k}`:"";
+    return` ${k}="${v}"`;
+  }).join("");
+  const selfClose=["input","br","hr","img"].includes(tag);
+  if(selfClose)return`<${tag}${a}/>`;
+  return`<${tag}${a}>${inner||""}</${tag}>`;
+}
+
+function progress(val,max,color,thin=false){
+  const pct=Math.min(100,Math.round((val/max)*100));
+  const bg=color||(pct>90?C.danger:pct>70?C.warning:getAccent().grad);
+  return`<div class="progress-wrap" style="height:${thin?4:8}px"><div class="progress-bar" style="width:${pct}%;background:${bg};height:100%"></div></div>`;
+}
+
+function gradBadge(text){
+  const acc=getAccent();
+  return`<span style="background:${acc.grad};color:white;border-radius:100px;padding:3px 12px;font-size:11px;font-weight:700;display:inline-block">${text}</span>`;
+}
+
+function toggle(id,on){
+  const acc=getAccent();
+  return`<div class="toggle-track" style="background:${on?acc.primary:C.border}" data-toggle="${id}"><div class="toggle-thumb" style="left:${on?22:2}px"></div></div>`;
+}
+
+// ═══════════════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════════════
+function renderDashboard(){
+  const t=getT2(),acc=getAccent(),s=safeToSpend();
+  const {finances,transactions,recurringItems,banks,selectedBankId,goals,insights,snapshotDate}=STATE;
+  const pctUsed=Math.min(100,Math.round((finances.spent/finances.monthlyBudget)*100));
+  const today=new Date().getDate();
+  const rd=RANGE_DATA[STATE.timeRange]||RANGE_DATA.month;
+  const filtered=selectedBankId==="all"?banks:banks.filter(b=>b.id===selectedBankId);
+  const totalBalance=filtered.reduce((sum,b)=>sum+b.balance,0);
+  const upcomingBills=recurringItems.filter(b=>{const d=b.dueDay>=today?b.dueDay-today:30-today+b.dueDay;return d<=7;});
+  const now=new Date();
+  const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let monthGridHtml="";
+  for(let i=-3;i<=2;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()+i,1);
+    const cur=i===0;
+    monthGridHtml+=`<div style="flex:${cur?"0 0 72px":"0 0 50px"};border-radius:${cur?16:12}px;padding:${cur?"10px 8px":"8px 6px"};text-align:center;background:${cur?acc.grad:C.border};border:${cur?`2px solid ${acc.primary}`:`1px solid ${C.border}`};box-shadow:${cur?`0 0 18px ${acc.primary}40`:"none"};cursor:pointer;transition:all 0.2s">
+      <div style="font-size:${cur?14:11}px;font-weight:800;color:${cur?"white":C.textSecondary}">${MONTHS[d.getMonth()]}</div>
+      <div style="font-size:9px;color:${cur?"rgba(255,255,255,0.8)":C.textMuted};margin-top:2px">${d.getFullYear()}</div>
+      ${cur&&snapshotDate?`<div style="font-size:8px;color:rgba(255,255,255,0.7);margin-top:5px;background:rgba(0,0,0,0.15);border-radius:6px;padding:2px 4px">📸 ${snapshotDate}</div>`:""}
+    </div>`;
+  }
+
+  let bankChipsHtml=`<button class="chip" data-bankfilter="all" style="border-color:${selectedBankId==="all"?acc.primary:C.border};background:${selectedBankId==="all"?acc.primary+"18":"transparent"};color:${selectedBankId==="all"?acc.primary:C.textSecondary}">${t.allBanks}</button>`;
+  banks.forEach(b=>{const active=selectedBankId===b.id;bankChipsHtml+=`<button class="chip" data-bankfilter="${b.id}" style="border-color:${active?b.color:C.border};background:${active?b.color+"18":"transparent"};color:${active?b.color:C.textSecondary}">${b.name}</button>`;});
+
+  let rangeChipsHtml="";
+  [{id:"week",l:t.week},{id:"month",l:t.month},{id:"quarter",l:t.quarter},{id:"year",l:t.year}].forEach(r=>{
+    rangeChipsHtml+=`<button class="range-chip" data-range="${r.id}" style="background:${STATE.timeRange===r.id?acc.grad:C.border};color:${STATE.timeRange===r.id?"white":C.textSecondary}">${r.l}</button>`;
+  });
+
+  let bankRowsHtml=banks.map(b=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px">
+    <div style="width:8px;height:8px;border-radius:50%;background:${b.color};flex-shrink:0"></div>
+    <span style="flex:1;font-size:12px;color:rgba(255,255,255,0.85)">${b.name}</span>
+    <span style="font-size:12px;font-weight:700;color:white">${fmt(b.balance)}</span>
+  </div>`).join("");
+
+  let goalsHtml=goals.map(g=>{
+    const pct=Math.min(100,Math.round((g.current/g.target)*100));
+    return`<div class="card" style="padding:14px 16px;min-width:160px;flex-shrink:0">
+      <div style="font-size:22px">${g.icon}</div>
+      <div style="color:${C.textPrimary};font-weight:800;font-size:14px;margin-top:6px">${g.title}</div>
+      <div style="color:${acc.primary};font-weight:700;font-size:12px;margin-top:2px">${fmt(g.current)} / ${fmt(g.target)}</div>
+      <div style="margin-top:8px">${progress(g.current,g.target,acc.primary,true)}</div>
+      <div style="color:${C.textMuted};font-size:11px;margin-top:4px">${pct}%</div>
+    </div>`;
+  }).join("");
+
+  let upcomingHtml="";
+  if(upcomingBills.length>0){
+    upcomingBills.slice(0,2).forEach(bill=>{
+      const du=bill.dueDay>=today?bill.dueDay-today:30-today+bill.dueDay;
+      upcomingHtml+=`<div class="card hoverable" style="display:flex;align-items:center;gap:14px;padding:13px 16px;margin-bottom:8px" onclick="navTo('activity')">
+        <div style="width:40px;height:40px;border-radius:12px;background:${bill.color}22;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${bill.icon}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${C.textPrimary}">${bill.name}</div>
+        <div style="font-size:11px;color:${du===0?C.danger:C.textSecondary};margin-top:2px">${du===0?t.dueToday:`${du} ${t.daysLeft}`}</div></div>
+        <div style="font-weight:800;color:${C.textPrimary};font-size:14px">${fmt(bill.amount)}</div>
+      </div>`;
+    });
+  }
+
+  let recentHtml=transactions.slice(0,4).map(tx=>`
+    <div class="card hoverable" style="display:flex;align-items:center;gap:14px;padding:12px 16px;margin-bottom:8px" onclick="navTo('activity')">
+      <div style="width:40px;height:40px;border-radius:12px;background:${tx.amount>0?C.success+"18":C.danger+"10"};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${tx.icon}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${C.textPrimary}">${tx.merchant}</div>
+      <div style="font-size:11px;color:${C.textSecondary};margin-top:2px">${tx.category} · ${tx.date.slice(5)}</div></div>
+      <div style="font-weight:800;font-size:14px;color:${tx.amount>0?C.success:C.textPrimary}">${tx.amount>0?"+":""}${fmt(Math.abs(tx.amount))}</div>
+    </div>`).join("");
+
+  let insightsHtml="";
+  if(insights.length>0){
+    insightsHtml=`<div><h3 style="margin:0 0 12px;color:${C.textPrimary};font-weight:700;display:flex;align-items:center;gap:8px">💡 Smart Insights <span style="background:${C.danger};width:8px;height:8px;border-radius:50%;display:inline-block"></span></h3>`;
+    insights.forEach(ins=>{
+      const msg=ins.type==="SPENDING_SURGE"?t.insightSpendingSurge.replace("{category}",ins.category).replace("{pct}",ins.pct):"";
+      insightsHtml+=`<div style="background:#FFFBEB;border-radius:14px;padding:13px 16px;margin-bottom:10px;border-left:4px solid #F59E0B;display:flex;align-items:center;gap:12px"><span style="font-size:18px">💡</span><span style="font-size:13px;font-weight:600;color:#92400E">${msg}</span></div>`;
+    });
+    insightsHtml+="</div>";
+  }
+
+  return`<div class="fade-up" style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;gap:6px">${rangeChipsHtml}</div>
+    <div style="display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">${monthGridHtml}</div>
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">${bankChipsHtml}</div>
+    <div style="background:${acc.grad};border-radius:24px;padding:26px 24px 22px;color:white;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-40px;right:-40px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,0.07);pointer-events:none"></div>
+      <div style="position:absolute;bottom:-60px;left:-30px;width:210px;height:210px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none"></div>
+      <div style="position:relative">
+        <div style="font-size:11px;opacity:0.8;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${t.totalBalance}</div>
+        <div style="font-size:38px;font-weight:900;letter-spacing:-1px;margin-bottom:16px">${fmt(totalBalance)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          ${[{l:t.safeToday,v:fmt(s.safeToday)},{l:t.safeWeekly,v:fmt(s.safeWeekly)},{l:t.daysLeft,v:`${s.daysLeft} 📅`}].map(x=>`
+          <div style="background:rgba(255,255,255,0.13);border-radius:12px;padding:9px 10px;backdrop-filter:blur(8px)">
+            <div style="font-size:9px;opacity:0.7;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.4px">${x.l}</div>
+            <div style="font-weight:900;font-size:13px">${x.v}</div>
+          </div>`).join("")}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${[{l:t.monthlyBudget,v:finances.monthlyBudget},{l:t.spent,v:finances.spent}].map(x=>`
+          <div style="background:rgba(255,255,255,0.10);border-radius:10px;padding:8px 12px">
+            <div style="font-size:10px;opacity:0.7;margin-bottom:2px">${x.l}</div>
+            <div style="font-weight:700;font-size:14px">${fmt(x.v)}</div>
+          </div>`).join("")}
+        </div>
+        <div style="margin-top:12px;font-size:10px;opacity:0.6">${t.formula}</div>
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">${bankRowsHtml}</div>
+      </div>
+    </div>
+    <div class="card" style="padding:16px 18px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:700;color:${C.textPrimary}">${t.budgetUsed}</span>
+        ${gradBadge(pctUsed+"%")}
+      </div>
+      ${progress(finances.spent,finances.monthlyBudget,null)}
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:${C.textSecondary}">
+        <span>${fmt(finances.spent)}</span>
+        <span style="color:${C.success};font-weight:700">${t.safeToSpend}: ${fmt(s.safeTotal)}</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="card" style="padding:14px 16px"><div style="font-size:20px;margin-bottom:5px">📈</div><div style="font-size:11px;color:${C.textSecondary};margin-bottom:3px">${t.income}</div><div style="font-size:17px;font-weight:800;color:${C.success}">${fmt(rd.income)}</div></div>
+      <div class="card" style="padding:14px 16px"><div style="font-size:20px;margin-bottom:5px">📉</div><div style="font-size:11px;color:${C.textSecondary};margin-bottom:3px">${t.expenses}</div><div style="font-size:17px;font-weight:800;color:${C.danger}">${fmt(rd.expenses)}</div></div>
+    </div>
+    ${insightsHtml}
+    <div>
+      <h3 style="margin:0 0 12px;color:${C.textPrimary};font-weight:700">${t.savingsGoals}</h3>
+      <div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">${goalsHtml}</div>
+    </div>
+    ${upcomingBills.length>0?`<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0;color:${C.textPrimary};font-weight:700">${t.upcomingBills}</h3><button onclick="navTo('activity')" style="background:none;border:none;cursor:pointer;color:${acc.primary};font-weight:700;font-size:13px">${t.viewAll}</button></div>${upcomingHtml}</div>`:""}
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;color:${C.textPrimary};font-weight:700">${t.recentActivity}</h3>
+        <button onclick="navTo('activity')" style="background:none;border:none;cursor:pointer;color:${acc.primary};font-weight:700;font-size:13px">${t.viewAll}</button>
+      </div>
+      ${recentHtml}
+    </div>
+  </div>`;
+}
+
+function renderActivity(){
+  const t=getT2(),acc=getAccent();
+  const {transactions,recurringItems}=STATE;
+  const view=STATE._actView||"transactions";
+  const query=STATE._actQuery||"";
+  const filter=STATE._actFilter||"all";
+  const today=new Date().getDate();
+  const filteredTx=transactions.filter(tx=>{
+    const mQ=tx.merchant.toLowerCase().includes(query.toLowerCase())||tx.category.toLowerCase().includes(query.toLowerCase());
+    const mF=filter==="all"||(filter==="income"?tx.amount>0:tx.amount<0);
+    return mQ&&mF;
+  });
+  const sortedBills=[...recurringItems].sort((a,b)=>{
+    const da=a.dueDay>=today?a.dueDay-today:30+a.dueDay-today;
+    const db=b.dueDay>=today?b.dueDay-today:30+b.dueDay-today;
+    return da-db;
+  });
+  const totalRecurring=recurringItems.reduce((s,b)=>s+b.amount,0);
+
+  const txHtml=filteredTx.length===0
+    ?`<div style="text-align:center;padding:50px;color:${C.textMuted}"><div style="font-size:36px;margin-bottom:10px">🔍</div><div style="font-weight:600">${t.noResults}</div></div>`
+    :filteredTx.map(tx=>`<div class="card hoverable" style="display:flex;align-items:center;gap:14px;padding:13px 16px;margin-bottom:8px">
+      <div style="width:44px;height:44px;border-radius:13px;background:${tx.amount>0?C.success+"18":C.danger+"10"};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${tx.icon}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px;color:${C.textPrimary}">${tx.merchant}</div>
+      <div style="font-size:11px;color:${C.textSecondary};margin-top:3px">${tx.category} · ${tx.date}</div></div>
+      <div style="font-weight:800;font-size:14px;color:${tx.amount>0?C.success:C.textPrimary}">${tx.amount>0?"+":""}${fmt(Math.abs(tx.amount))}</div>
+    </div>`).join("");
+
+  const billsHtml=sortedBills.map((bill,i)=>{
+    const du=bill.dueDay>=today?bill.dueDay-today:30-today+bill.dueDay;
+    const isUrgent=du<=2;
+    return`<div class="card hoverable" style="padding:15px 16px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:44px;height:44px;border-radius:13px;background:${bill.color}22;border:2px solid ${bill.color}44;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${bill.icon}</div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div><div style="font-weight:700;font-size:14px;color:${C.textPrimary}">${bill.name}</div>
+            <div style="font-size:11px;color:${C.textSecondary};margin-top:2px">${t.dueOn}${bill.dueDay} ${t.ofMonth}</div></div>
+            <div style="text-align:right"><div style="font-weight:800;font-size:15px;color:${C.textPrimary}">${fmt(bill.amount)}</div>
+            <div style="font-size:11px;color:${isUrgent?C.danger:C.textMuted};font-weight:${isUrgent?700:400};margin-top:2px">${du===0?t.dueToday:`${du} ${t.daysLeft}`}</div></div>
+          </div>
+          <div style="margin-top:8px">${progress(30-du,30,bill.color,true)}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return`<div class="fade-up" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;background:${C.border};border-radius:14px;padding:4px;gap:4px">
+      ${[["transactions",`📋 ${t.transactions}`],["bills",`💸 ${t.bills}`]].map(([key,label])=>`
+      <button onclick="STATE._actView='${key}';render()" style="flex:1;padding:9px 0;border-radius:10px;border:none;background:${view===key?C.surface:"transparent"};color:${view===key?C.textPrimary:C.textMuted};font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;box-shadow:${view===key?"0 2px 12px rgba(108,31,201,0.07)":"none"};transition:all 0.18s">${label}</button>`).join("")}
+    </div>
+    ${view==="transactions"?`
+      <div style="position:relative">
+        <span style="position:absolute;top:50%;transform:translateY(-50%);left:14px;font-size:15px;pointer-events:none">🔍</span>
+        <input value="${query}" oninput="STATE._actQuery=this.value;render()" placeholder="${t.search}"
+          style="width:100%;padding:11px 16px 11px 44px;border:1.5px solid ${C.border};border-radius:18px;font-size:14px;background:${C.surface};color:${C.textPrimary};outline:none;box-sizing:border-box;font-family:inherit"/>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${[["all",t.allTransactions],["income",t.income],["expense",t.expenses]].map(([key,label])=>`
+        <button onclick="STATE._actFilter='${key}';render()" style="padding:6px 14px;border-radius:100px;border:none;background:${filter===key?acc.grad:C.border};color:${filter===key?"white":C.textSecondary};font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;transition:all 0.18s">${label}</button>`).join("")}
+      </div>
+      ${txHtml}
+    `:`
+      <div style="background:${acc.grad};border-radius:20px;padding:18px 20px;color:white">
+        <div style="font-size:11px;opacity:0.8;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">${t.recurringPayments}</div>
+        <div style="font-size:26px;font-weight:900">${fmt(totalRecurring)}</div>
+        <div style="font-size:11px;opacity:0.7;margin-top:3px">Monthly</div>
+      </div>
+      ${billsHtml}
+    `}
+  </div>`;
+}
+
+function renderStats(){
+  const t=getT2(),acc=getAccent();
+  const {monthlyData,categoryData}=STATE;
+  const maxVal=Math.max(...monthlyData.map(m=>Math.max(m.income,m.expenses)));
+  const rd=RANGE_DATA[STATE.timeRange]||RANGE_DATA.month;
+  const daysDiv=STATE.timeRange==="week"?7:STATE.timeRange==="quarter"?90:STATE.timeRange==="year"?365:30;
+
+  const barChart=monthlyData.map((m,i)=>`
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="display:flex;gap:2px;align-items:flex-end;height:84px">
+        <div style="width:44%;height:${Math.max(4,(m.income/maxVal)*84)}px;background:${C.success};border-radius:4px 4px 0 0;opacity:0.85"></div>
+        <div style="width:44%;height:${Math.max(4,(m.expenses/maxVal)*84)}px;background:${C.danger};border-radius:4px 4px 0 0;opacity:0.75"></div>
+      </div>
+      <div style="font-size:9px;color:${C.textSecondary}">${m.month}</div>
+    </div>`).join("");
+
+  const catRows=categoryData.map(cat=>`
+    <div style="margin-bottom:13px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:13px;font-weight:600;color:${C.textPrimary}">${cat.name}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;color:${C.textSecondary}">${fmt(cat.amount)}</span>
+          <span style="font-size:11px;font-weight:700;color:${cat.color};background:${cat.color}18;padding:1px 7px;border-radius:20px">${cat.pct}%</span>
+        </div>
+      </div>
+      ${progress(cat.pct,100,cat.color,true)}
+    </div>`).join("");
+
+  const stats=[
+    {label:"Saved",value:fmt(8649),icon:"💰",color:C.success},
+    {label:"Transactions",value:String(STATE.transactions.length),icon:"🔄",color:"#4A90E2"},
+    {label:"Daily Avg",value:fmt(Math.round(rd.expenses/daysDiv)),icon:"📅",color:"#9B59B6"},
+  ];
+
+  return`<div class="fade-up" style="display:flex;flex-direction:column;gap:20px">
+    <div class="card" style="padding:18px 16px">
+      <h3 style="margin:0 0 16px;color:${C.textPrimary};font-weight:700">${t.monthlyOverview}</h3>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:110px">${barChart}</div>
+      <div style="display:flex;gap:16px;justify-content:center;margin-top:10px">
+        ${[[C.success,t.income],[C.danger,t.expenses]].map(([col,label])=>`<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${C.textSecondary}"><div style="width:10px;height:10px;border-radius:3px;background:${col}"></div>${label}</div>`).join("")}
+      </div>
+    </div>
+    <div class="card" style="padding:18px 16px">
+      <h3 style="margin:0 0 14px;color:${C.textPrimary};font-weight:700">${t.spendingByCategory}</h3>
+      ${catRows}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+      ${stats.map(s=>`<div class="card" style="padding:13px 10px;text-align:center"><div style="font-size:20px;margin-bottom:5px">${s.icon}</div><div style="font-size:13px;font-weight:800;color:${s.color};margin-bottom:2px">${s.value}</div><div style="font-size:10px;color:${C.textSecondary}">${s.label}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderSettings(){
+  const t=getT2(),acc=getAccent(),{lang,isPrivacy,banks,profile}=STATE;
+  const curLang=LANGUAGES.find(l=>l.code===lang)||LANGUAGES[0];
+  const accRows=ACCENTS.map(a=>`<button onclick="STATE.accentId='${a.id}';render()" style="width:26px;height:26px;border-radius:50%;background:${a.grad};border:${a.id===STATE.accentId?"3px solid "+C.textPrimary:"3px solid transparent"};cursor:pointer;padding:0;transition:all 0.15s;transform:${a.id===STATE.accentId?"scale(1.18)":"scale(1)"}"></button>`).join("");
+  const bankRows=banks.map((b,i)=>`<div class="settings-row" style="border-bottom:${i<banks.length-1?`1px solid ${C.border}`:"none"}"><span style="font-size:20px">🏦</span><span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${b.name}</span><span style="color:${C.textSecondary};font-size:13px;font-weight:700">$${Math.abs(b.balance).toLocaleString()}</span></div>`).join("");
+  const modals=["notifications","security","export"];
+
+  return`<div class="fade-up">
+    <div class="card" style="padding:20px;margin-bottom:22px;display:flex;align-items:center;gap:16px">
+      <div style="width:56px;height:56px;border-radius:50%;background:${acc.grad};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:18px;flex-shrink:0;box-shadow:0 4px 16px ${acc.primary}44">${profile.avatar}</div>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:17px;color:${C.textPrimary}">${profile.name}</div>
+        <div style="margin-top:6px">${gradBadge("Premium ✦")}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:${C.textMuted};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">${t.preferences}</div>
+      <div class="card" style="overflow:hidden;padding:0">
+        <div class="settings-row" style="border-bottom:1px solid ${C.border}">
+          <span style="font-size:20px">👁️</span>
+          <span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.privacyToggle}</span>
+          ${toggle("privacy",isPrivacy)}
+        </div>
+        <div class="settings-row clickable" onclick="openLangSelector()" style="cursor:pointer">
+          <span style="font-size:20px">🌍</span>
+          <span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.language}</span>
+          <span style="color:${C.textSecondary};font-size:14px">${curLang.flag} ${curLang.local}</span>
+          <span style="color:${C.textMuted};font-size:16px">›</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:${C.textMuted};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">${t.appearance}</div>
+      <div class="card" style="overflow:hidden;padding:0">
+        <div class="settings-row">
+          <span style="font-size:20px">🎨</span>
+          <span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.accentColor}</span>
+          <div style="display:flex;gap:8px">${accRows}</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:${C.textMuted};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">${t.linkedAccounts}</div>
+      <div class="card" style="overflow:hidden;padding:0">${bankRows}</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:${C.textMuted};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">${t.account}</div>
+      <div class="card" style="overflow:hidden;padding:0">
+        <div class="settings-row clickable" onclick="openSettingsModal('notifications')" style="border-bottom:1px solid ${C.border}"><span style="font-size:20px">🔔</span><span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.notifications}</span><span style="color:${C.textMuted};font-size:18px">›</span></div>
+        <div class="settings-row clickable" onclick="openSettingsModal('security')" style="border-bottom:1px solid ${C.border}"><span style="font-size:20px">🔒</span><span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.security}</span><span style="color:${C.textMuted};font-size:18px">›</span></div>
+        <div class="settings-row clickable" onclick="openSettingsModal('export')"><span style="font-size:20px">📤</span><span style="flex:1;font-weight:600;font-size:14px;color:${C.textPrimary}">${t.export}</span><span style="color:${C.textMuted};font-size:18px">›</span></div>
+      </div>
+    </div>
+    <div style="text-align:center;padding:8px 0 28px;font-size:12px;color:${C.textMuted}">SimpleFinance v4.0 · Built with ❤️</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════
+function openProfileForm(){
+  const t=getT2(),acc=getAccent(),p=STATE.profile;
+  const html=`<div id="profile-overlay" class="overlay" onclick="closeProfile(event)">
+    <div class="sheet slide-up" style="padding:0" onclick="event.stopPropagation()">
+      <div style="padding:20px 24px 16px;border-bottom:1px solid ${C.border};display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <div><h2 style="margin:0;font-size:20px;font-weight:800;color:${C.textPrimary}">${t.profile}</h2><div style="font-size:12px;color:${C.textSecondary};margin-top:2px"><span style="color:${C.danger}">*</span> ${t.required}</div></div>
+        <button onclick="document.getElementById('profile-overlay').remove()" style="background:${C.bg};border:none;border-radius:10px;width:34px;height:34px;font-size:20px;cursor:pointer;color:${C.textSecondary};display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:20px 24px 32px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.firstName} <span style="color:${C.danger};font-size:11px">*</span></div><input id="pf-fn" value="${p.firstName}" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+          <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.lastName} <span style="color:${C.danger};font-size:11px">*</span></div><input id="pf-ln" value="${p.lastName}" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+        </div>
+        <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.email} <span style="color:${C.danger};font-size:11px">*</span></div><input id="pf-em" type="email" value="${p.email}" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+        <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.phone} <span style="color:${C.danger};font-size:11px">*</span></div><input id="pf-ph" type="tel" value="${p.phone}" placeholder="+1 (555) 000-0000" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+        <div id="pf-err" style="color:${C.danger};font-size:13px;font-weight:700;margin-bottom:12px;text-align:center;display:none"></div>
+        <div id="pf-ok" style="text-align:center;padding:14px 0;color:${C.success};font-weight:800;font-size:15px;display:none">✅ ${t.profileSaved}</div>
+        <button onclick="saveProfile()" style="width:100%;padding:14px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;margin-bottom:20px">${t.saveProfile}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+}
+
+function closeProfile(e){if(e.target.id==="profile-overlay")document.getElementById("profile-overlay")?.remove();}
+
+function saveProfile(){
+  const fn=document.getElementById("pf-fn")?.value.trim();
+  const ln=document.getElementById("pf-ln")?.value.trim();
+  const em=document.getElementById("pf-em")?.value.trim();
+  const ph=document.getElementById("pf-ph")?.value.trim();
+  const errEl=document.getElementById("pf-err");
+  if(!fn||!ln){errEl.textContent="First and last name required";errEl.style.display="block";return;}
+  if(!em||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){errEl.textContent=getT2().invalidEmail;errEl.style.display="block";return;}
+  errEl.style.display="none";
+  STATE.profile={...STATE.profile,firstName:fn,lastName:ln,name:`${fn} ${ln}`,email:em,phone:ph,avatar:(fn[0]+ln[0]).toUpperCase()};
+  document.getElementById("pf-ok").style.display="block";
+  setTimeout(()=>{document.getElementById("profile-overlay")?.remove();render();},1200);
+}
+
+function openLangSelector(){
+  const t=getT2(),acc=getAccent();
+  const rows=LANGUAGES.map(l=>`<div onclick="STATE.lang='${T_MAP[l.code]?l.code:"EN"}';document.getElementById('lang-overlay').remove();render()" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid ${C.border};cursor:pointer">
+    <span style="font-size:24px">${l.flag}</span>
+    <div style="flex:1"><div style="color:${C.textPrimary};font-weight:700;font-size:15px">${l.local}</div><div style="color:${C.textSecondary};font-size:12px">${l.name}</div></div>
+    ${STATE.lang===l.code?`<span style="color:${acc.primary};font-weight:800">✓</span>`:""}
+  </div>`).join("");
+  const html=`<div id="lang-overlay" onclick="if(event.target.id==='lang-overlay')this.remove()" style="position:fixed;inset:0;background:rgba(26,10,46,0.5);backdrop-filter:blur(6px);z-index:5000;display:flex;align-items:flex-end">
+    <div onclick="event.stopPropagation()" style="background:${C.surface};width:100%;border-radius:28px 28px 0 0;padding:24px;max-height:80vh;display:flex;flex-direction:column">
+      <div style="width:40px;height:4px;background:${C.border};border-radius:99px;margin:0 auto 16px"></div>
+      <div style="color:${C.textPrimary};font-size:20px;font-weight:800;margin-bottom:16px">${t.language}</div>
+      <input oninput="filterLangs(this.value)" placeholder="${t.searchLang}" style="width:100%;padding:12px 16px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;margin-bottom:16px;box-sizing:border-box;font-family:inherit"/>
+      <div id="lang-list" style="overflow-y:auto;flex:1">${rows}</div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+}
+
+function filterLangs(q){
+  const filtered=LANGUAGES.filter(l=>l.name.toLowerCase().includes(q.toLowerCase())||l.local.toLowerCase().includes(q.toLowerCase()));
+  const acc=getAccent();
+  document.getElementById("lang-list").innerHTML=filtered.map(l=>`<div onclick="STATE.lang='${T_MAP[l.code]?l.code:"EN"}';document.getElementById('lang-overlay').remove();render()" style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid ${C.border};cursor:pointer">
+    <span style="font-size:24px">${l.flag}</span>
+    <div style="flex:1"><div style="color:${C.textPrimary};font-weight:700;font-size:15px">${l.local}</div><div style="color:${C.textSecondary};font-size:12px">${l.name}</div></div>
+    ${STATE.lang===l.code?`<span style="color:${acc.primary};font-weight:800">✓</span>`:""}
+  </div>`).join("");
+}
+
+function openSettingsModal(type){
+  const t=getT2(),acc=getAccent();
+  const info={
+    notifications:{title:t.notifications,icon:"🔔",desc:t.notifDesc},
+    security:{title:t.security,icon:"🔒",desc:t.secDesc},
+    export:{title:t.export,icon:"📤",desc:t.exportDesc},
+  };
+  const m=info[type];
+  const html=`<div id="sm-overlay" class="modal-center" onclick="if(event.target.id==='sm-overlay')this.remove()">
+    <div onclick="event.stopPropagation()" style="background:${C.surface};border-radius:24px;padding:28px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.2);animation:slideUp 0.22s cubic-bezier(.4,0,.2,1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">${m.icon}</span><h3 style="margin:0;font-size:18px;font-weight:800;color:${C.textPrimary}">${m.title}</h3></div>
+        <button onclick="document.getElementById('sm-overlay').remove()" style="background:${C.bg};border:none;border-radius:10px;width:34px;height:34px;font-size:20px;cursor:pointer;color:${C.textSecondary};display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <p style="color:${C.textSecondary};font-size:14px;line-height:1.6;margin:0 0 14px">${m.desc}</p>
+      <div style="background:${C.bg};border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:10px;margin-bottom:22px"><span style="font-size:22px">🚀</span><span style="font-size:13px;font-weight:600;color:${C.textSecondary}">${t.comingSoon}</span></div>
+      <button onclick="document.getElementById('sm-overlay').remove()" style="width:100%;padding:13px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">${t.close}</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+}
+
+function openManualEntry(){
+  const t=getT2(),acc=getAccent();
+  const CATS=["Groceries","Food","Restaurant","Entertainment","Transport","Shopping","Health","Income","Rent","Utilities","Insurance","Subscription","Travel","Education","Other"];
+  const catOpts=CATS.map(c=>`<option value="${c}">${CAT_ICONS[c]||"💳"} ${c}</option>`).join("");
+  const today=new Date().toISOString().slice(0,10);
+  const html=`<div id="manual-overlay" class="overlay" onclick="if(event.target.id==='manual-overlay')this.remove()">
+    <div onclick="event.stopPropagation()" style="background:${C.surface};width:100%;max-width:480px;margin:0 auto;border-radius:28px 28px 0 0;padding:24px 24px 40px;animation:slideUp 0.28s cubic-bezier(.4,0,.2,1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h3 style="margin:0;font-size:20px;font-weight:800;color:${C.textPrimary}">✏️ ${t.manualEntryTitle}</h3>
+        <button onclick="document.getElementById('manual-overlay').remove()" style="background:${C.bg};border:none;border-radius:10px;width:34px;height:34px;font-size:20px;cursor:pointer;color:${C.textSecondary};display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+      <div id="me-type" style="display:flex;background:${C.border};border-radius:14px;padding:4px;gap:4px;margin-bottom:18px">
+        <button id="me-exp-btn" onclick="setMeType('expense')" style="flex:1;padding:9px 0;border-radius:10px;border:none;background:${C.danger};color:white;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">💸 ${t.expenseType}</button>
+        <button id="me-inc-btn" onclick="setMeType('income')" style="flex:1;padding:9px 0;border-radius:10px;border:none;background:transparent;color:${C.textMuted};font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">💰 ${t.incomeType}</button>
+      </div>
+      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.merchant} <span style="color:${C.danger}">*</span></div><input id="me-merchant" placeholder="e.g. Starbucks" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.amount} <span style="color:${C.danger}">*</span></div><input id="me-amount" type="number" placeholder="0.00" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.date}</div><input id="me-date" type="date" value="${today}" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;box-sizing:border-box;font-family:inherit"/></div>
+      <div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:${C.textSecondary};margin-bottom:5px">${t.category}</div><select id="me-cat" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid ${C.border};background:${C.bg};color:${C.textPrimary};outline:none;font-size:14px;font-family:inherit;cursor:pointer">${catOpts}</select></div>
+      <div id="me-err" style="color:${C.danger};font-size:13px;font-weight:700;margin-bottom:12px;text-align:center;display:none"></div>
+      <button onclick="submitManual()" style="width:100%;padding:15px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:800;font-size:16px;cursor:pointer;font-family:inherit">${t.addTransaction}</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+  window._meType="expense";
+}
+
+let _meType="expense";
+function setMeType(type){
+  _meType=type;
+  const expBtn=document.getElementById("me-exp-btn");
+  const incBtn=document.getElementById("me-inc-btn");
+  if(expBtn){expBtn.style.background=type==="expense"?C.danger:"transparent";expBtn.style.color=type==="expense"?"white":C.textMuted;}
+  if(incBtn){incBtn.style.background=type==="income"?C.success:"transparent";incBtn.style.color=type==="income"?"white":C.textMuted;}
+}
+
+function submitManual(){
+  const m=document.getElementById("me-merchant")?.value.trim();
+  const a=parseFloat(document.getElementById("me-amount")?.value);
+  const d=document.getElementById("me-date")?.value;
+  const cat=document.getElementById("me-cat")?.value||"Other";
+  const errEl=document.getElementById("me-err");
+  if(!m){errEl.textContent="Merchant name is required";errEl.style.display="block";return;}
+  if(isNaN(a)||a<=0){errEl.textContent="Enter a valid positive amount";errEl.style.display="block";return;}
+  errEl.style.display="none";
+  const finalAmt=_meType==="expense"?-a:a;
+  const tx={id:Date.now(),merchant:m,amount:finalAmt,date:d||new Date().toISOString().slice(0,10),category:cat,icon:CAT_ICONS[cat]||"💳",bankId:"b1"};
+  STATE.transactions=[tx,...STATE.transactions];
+  if(finalAmt<0){STATE.finances.spent+=Math.abs(finalAmt);STATE.banks[0].balance+=finalAmt;}
+  else{STATE.banks[0].balance+=finalAmt;}
+  document.getElementById("manual-overlay")?.remove();
+  navTo("home");
+}
+
+function openFAB(){
+  const existing=document.getElementById("fab-menu");
+  if(existing){existing.remove();return;}
+  const t=getT2(),acc=getAccent();
+  const html=`<div id="fab-menu" style="position:fixed;bottom:78px;left:50%;transform:translateX(-50%);z-index:4500;display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div onclick="document.getElementById('fab-menu')?.remove();document.getElementById('file-input').click()" style="display:flex;align-items:center;gap:10px;background:${C.surface};border-radius:50px;padding:9px 18px 9px 12px;box-shadow:0 8px 28px rgba(108,31,201,0.14);cursor:pointer;border:1px solid ${C.border};white-space:nowrap"><span style="font-size:18px">📄</span><span style="font-weight:700;font-size:13px;color:${C.textPrimary}">${t.uploadPDF}</span></div>
+    <div onclick="document.getElementById('fab-menu')?.remove();document.getElementById('photo-input').click()" style="display:flex;align-items:center;gap:10px;background:${C.surface};border-radius:50px;padding:9px 18px 9px 12px;box-shadow:0 8px 28px rgba(108,31,201,0.14);cursor:pointer;border:1px solid ${C.border};white-space:nowrap"><span style="font-size:18px">📸</span><span style="font-weight:700;font-size:13px;color:${C.textPrimary}">${t.uploadPhoto}</span></div>
+    <div onclick="document.getElementById('fab-menu')?.remove();openManualEntry()" style="display:flex;align-items:center;gap:10px;background:${C.surface};border-radius:50px;padding:9px 18px 9px 12px;box-shadow:0 8px 28px rgba(108,31,201,0.14);cursor:pointer;border:1px solid ${C.border};white-space:nowrap"><span style="font-size:18px">✏️</span><span style="font-weight:700;font-size:13px;color:${C.textPrimary}">${t.manualEntry}</span></div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+}
+
+// ═══════════════════════════════════════════════
+// CLAUDE API FILE ANALYSIS
+// ═══════════════════════════════════════════════
+async function analyzeFile(file){
+  const isImage=file.type.startsWith("image/");
+  const isPDF=file.type==="application/pdf"||file.name.endsWith(".pdf");
+  const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("Read failed"));r.readAsDataURL(file);});
+  const mimeType=file.type||(isPDF?"application/pdf":"image/jpeg");
+  const system=`You are a financial document analyzer. Extract ALL transactions from the provided bank statement or receipt. Return ONLY a valid JSON array — no markdown, no explanation. Each object: merchant(string), amount(number, negative=expense), date(YYYY-MM-DD), category(one of: Groceries,Food,Restaurant,Entertainment,Transport,Shopping,Health,Income,Rent,Utilities,Insurance,Subscription,Travel,Education,Other). If none found, return: []`;
+  const userContent=isImage
+    ?[{type:"image",source:{type:"base64",media_type:mimeType,data:base64}},{type:"text",text:"Extract all financial transactions. Return only a JSON array."}]
+    :isPDF
+    ?[{type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},{type:"text",text:"Extract all financial transactions. Return only a JSON array."}]
+    :[{type:"text",text:"No valid file. Return []."}];
+  const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system,messages:[{role:"user",content:userContent}]})});
+  if(!resp.ok)throw new Error(`API ${resp.status}`);
+  const data=await resp.json();
+  const text=data.content.map(b=>b.text||"").join("").trim().replace(/```json|```/g,"").trim();
+  const parsed=JSON.parse(text);
+  return Array.isArray(parsed)?parsed:[];
+}
+
+async function handleFileUpload(file){
+  document.getElementById("fab-menu")?.remove();
+  const t=getT2();
+  document.body.insertAdjacentHTML("beforeend",`<div id="processing-overlay"><div class="sf-spinner"></div><p>${t.processing}</p></div>`);
+  try{
+    const txs=await analyzeFile(file);
+    document.getElementById("processing-overlay")?.remove();
+    const enriched=txs.map((tx,i)=>({...tx,id:Date.now()+i,icon:CAT_ICONS[tx.category]||"💳",date:tx.date||new Date().toISOString().slice(0,10)}));
+    openSyncModal(enriched,null);
+  }catch(err){
+    document.getElementById("processing-overlay")?.remove();
+    openSyncModal([],err.message);
+  }
+}
+
+function openSyncModal(transactions,error){
+  const t=getT2(),acc=getAccent();
+  let checked=transactions.map(()=>true);
+  const body=error
+    ?`<div style="text-align:center;padding:20px 0"><div style="font-size:48px;margin-bottom:12px">⚠️</div><div style="font-weight:700;font-size:15px;color:${C.danger};margin-bottom:16px">${t.analysisError}</div><button onclick="document.getElementById('sync-overlay').remove()" style="padding:12px 24px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:700;cursor:pointer;font-family:inherit">${t.close}</button></div>`
+    :transactions.length===0
+    ?`<div style="text-align:center;padding:20px 0"><div style="font-size:48px;margin-bottom:12px">🔍</div><div style="font-weight:700;font-size:15px;color:${C.textPrimary};margin-bottom:16px">${t.noTxFound}</div><button onclick="document.getElementById('sync-overlay').remove()" style="padding:12px 24px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:700;cursor:pointer;font-family:inherit">${t.close}</button></div>`
+    :`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-shrink:0">
+        <h3 style="margin:0;font-size:20px;font-weight:800;color:${C.textPrimary}">${t.confirmTitle}</h3>
+        <button onclick="document.getElementById('sync-overlay').remove()" style="background:${C.bg};border:none;border-radius:10px;width:34px;height:34px;font-size:20px;cursor:pointer;color:${C.textSecondary}">×</button>
+      </div>
+      <div style="font-size:13px;color:${C.textSecondary};margin-bottom:14px;flex-shrink:0">${t.found.replace("{n}",transactions.length)}</div>
+      <div id="sync-tx-list" style="overflow-y:auto;flex:1;background:${C.bg};border-radius:16px;margin-bottom:16px">
+        ${transactions.map((tx,i)=>`<div onclick="toggleSyncCheck(${i})" id="sync-row-${i}" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:${i<transactions.length-1?`1px solid ${C.border}`:"none"};cursor:pointer;transition:opacity 0.18s">
+          <div id="sync-chk-${i}" style="width:22px;height:22px;border-radius:6px;border:2px solid ${acc.primary};background:${acc.primary};display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="color:white;font-size:12px;font-weight:900">✓</span></div>
+          <span style="font-size:20px;flex-shrink:0">${CAT_ICONS[tx.category]||"💳"}</span>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;color:${C.textPrimary};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tx.merchant}</div><div style="font-size:11px;color:${C.textSecondary}">${tx.category} · ${tx.date}</div></div>
+          <div style="font-weight:800;color:${tx.amount<0?C.danger:C.success};flex-shrink:0">${tx.amount>0?"+":""}${fmt(Math.abs(tx.amount))}</div>
+        </div>`).join("")}
+      </div>
+      <button id="sync-approve-btn" onclick="approveSyncTransactions()" style="width:100%;padding:16px;border:none;border-radius:18px;background:${acc.grad};color:white;font-weight:800;font-size:16px;cursor:pointer;font-family:inherit">${t.approve} (${transactions.length})</button>`;
+
+  const html=`<div id="sync-overlay" onclick="if(event.target.id==='sync-overlay')this.remove()" style="position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:8000;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)">
+    <div onclick="event.stopPropagation()" style="background:${C.surface};border-radius:28px 28px 0 0;padding:28px 24px 40px;width:100%;max-width:500px;max-height:85vh;display:flex;flex-direction:column;animation:slideUp 0.28s cubic-bezier(.4,0,.2,1)">
+      ${body}
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+  window._syncTxs=transactions;
+  window._syncChecked=transactions.map(()=>true);
+}
+
+function toggleSyncCheck(i){
+  window._syncChecked[i]=!window._syncChecked[i];
+  const acc=getAccent();
+  const row=document.getElementById(`sync-row-${i}`);
+  const chk=document.getElementById(`sync-chk-${i}`);
+  if(row)row.style.opacity=window._syncChecked[i]?"1":"0.45";
+  if(chk){chk.style.background=window._syncChecked[i]?acc.primary:"transparent";chk.style.borderColor=window._syncChecked[i]?acc.primary:C.border;chk.innerHTML=window._syncChecked[i]?`<span style="color:white;font-size:12px;font-weight:900">✓</span>`:""}
+  const sel=window._syncTxs.filter((_,idx)=>window._syncChecked[idx]);
+  const btn=document.getElementById("sync-approve-btn");
+  if(btn)btn.textContent=`${getT2().approve} (${sel.length})`;
+}
+
+function approveSyncTransactions(){
+  const selected=(window._syncTxs||[]).filter((_,i)=>(window._syncChecked||[])[i]);
+  const addedSpend=selected.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+  const addedIncome=selected.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
+  STATE.transactions=[...selected.map(t=>({...t,bankId:"b1"})),...STATE.transactions];
+  STATE.finances.spent+=addedSpend;
+  STATE.banks[0].balance+=addedIncome-addedSpend;
+  STATE.snapshotDate=new Date().toLocaleDateString("en-US");
+  if(addedSpend>200)STATE.insights=[{type:"SPENDING_SURGE",category:"New Upload",pct:Math.round((addedSpend/STATE.finances.monthlyBudget)*100)}];
+  const overlay=document.getElementById("sync-overlay");
+  if(overlay){
+    overlay.querySelector("div").innerHTML=`<div style="text-align:center;padding:20px 0"><div style="font-size:52px;margin-bottom:12px">✅</div><div style="font-weight:800;font-size:18px;color:${C.textPrimary}">${getT2().syncSuccess}</div></div>`;
+    setTimeout(()=>{overlay.remove();navTo("home");},1500);
+  }
+}
+
+function openDrawer(){
+  const t=getT2(),acc=getAccent();
+  const links=[{id:"home",icon:"🏠",label:t.home},{id:"activity",icon:"📋",label:t.activity},{id:"stats",icon:"📊",label:t.stats},{id:"settings",icon:"⚙️",label:t.settings}];
+  const linksHtml=links.map(l=>`<div class="drawer-link" onclick="navTo('${l.id}');document.getElementById('drawer-overlay').remove()"><span style="font-size:20px">${l.icon}</span><span style="font-weight:600;font-size:15px">${l.label}</span></div>`).join("");
+  const html=`<div id="drawer-overlay" onclick="if(event.target.id==='drawer-overlay')this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:8000;backdrop-filter:blur(4px);animation:fadeIn 0.2s ease">
+    <div onclick="event.stopPropagation()" style="position:absolute;top:0;left:0;bottom:0;width:270px;background:${C.surface};border-right:1px solid ${C.border};display:flex;flex-direction:column;padding-bottom:32px;box-shadow:6px 0 40px rgba(108,31,201,0.15)">
+      <div onclick="document.getElementById('drawer-overlay').remove();openProfileForm()" style="padding:52px 24px 24px;border-bottom:1px solid ${C.border};cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='${C.bg}'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:46px;height:46px;border-radius:50%;background:${acc.grad};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:16px">${STATE.profile.avatar}</div>
+          <div style="flex:1"><div style="color:${C.textPrimary};font-weight:800;font-size:15px">${STATE.profile.name}</div>${gradBadge("Premium ✦")}</div>
+          <span style="font-size:14px;color:${C.textMuted}">✏️</span>
+        </div>
+        <div style="font-size:11px;color:${C.textSecondary};margin-top:6px">${t.editProfile}</div>
+      </div>
+      <div style="flex:1;padding:16px 12px">${linksHtml}</div>
+      <div style="padding:0 24px;font-size:11px;color:${C.textMuted};text-align:center">SimpleFinance v4.0</div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML("beforeend",html);
+}
+
+// ═══════════════════════════════════════════════
+// MAIN RENDER
+// ═══════════════════════════════════════════════
+function render(){
+  if(STATE.isDeleted){
+    document.getElementById("app").innerHTML=`<div style="min-height:100vh;background:${C.bg};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center"><div style="font-size:64px;margin-bottom:20px">🗑️</div><h2 style="color:${C.textPrimary};font-weight:800;font-size:22px;margin:0 0 10px">Account Deleted</h2><p style="color:${C.textSecondary};font-size:14px;line-height:1.6;max-width:280px">Your account and all associated data have been permanently and securely deleted.</p></div>`;
+    return;
+  }
+  const t=getT2(),acc=getAccent();
+  const isRtl=isRTL();
+  const screens={home:renderDashboard,activity:renderActivity,stats:renderStats,settings:renderSettings};
+  const tab=STATE.tab;
+  const navItems=[{id:"home",label:t.home,icon:"🏠"},{id:"activity",label:t.activity,icon:"📋"},{id:"stats",label:t.stats,icon:"📊"},{id:"settings",label:t.settings,icon:"⚙️"}];
+  const screenContent=(screens[tab]||renderDashboard)();
+  const navLeft=navItems.slice(0,2).map(item=>`<button class="nav-btn" onclick="navTo('${item.id}')" style="color:${tab===item.id?acc.primary:C.textMuted}"><span style="font-size:22px">${item.icon}</span>${item.label}</button>`).join("");
+  const navRight=navItems.slice(2).map(item=>`<button class="nav-btn" onclick="navTo('${item.id}')" style="color:${tab===item.id?acc.primary:C.textMuted}"><span style="font-size:22px">${item.icon}</span>${item.label}</button>`).join("");
+  const nowDate=new Date().toLocaleDateString(isRtl?"he-IL":"en-US",{weekday:"long",month:"long",day:"numeric"});
+
+  document.getElementById("app").innerHTML=`
+  <div style="background:${C.bg};min-height:100vh;direction:${isRtl?"rtl":"ltr"}">
+    <main style="max-width:480px;margin:0 auto;padding:20px 16px ${C.navH+50}px">
+      <header style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:10px">
+          ${STATE.history.length>0
+            ?`<button onclick="goBack()" style="background:${C.surface};border:1px solid ${C.border};border-radius:12px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:${C.textPrimary};box-shadow:0 2px 12px rgba(108,31,201,0.07);flex-shrink:0">${isRtl?"›":"‹"}</button>`
+            :`<button onclick="openDrawer()" style="background:none;border:none;cursor:pointer;padding:6px;display:flex;flex-direction:column;gap:5px;align-items:flex-start">${[0,1,2].map(i=>`<div style="width:22px;height:2px;background:${C.textSecondary};border-radius:2px"></div>`).join("")}</button>`}
+          <div>
+            <div style="font-size:11px;color:${C.textMuted};font-weight:600;letter-spacing:0.5px;text-transform:uppercase">${nowDate}</div>
+            <h1 style="margin:4px 0 0;font-size:22px;font-weight:800;color:${C.textPrimary}">${navItems.find(i=>i.id===tab)?.label||""}</h1>
+          </div>
+        </div>
+        <div onclick="navTo('settings')" style="width:40px;height:40px;border-radius:50%;background:${acc.grad};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;box-shadow:0 3px 10px ${acc.primary}44;cursor:pointer">${STATE.profile.avatar}</div>
+      </header>
+      ${screenContent}
+    </main>
+    <nav style="position:fixed;bottom:0;left:0;right:0;height:${C.navH}px;z-index:1000;background:${C.surface};border-top:1px solid ${C.border};box-shadow:0 -4px 20px rgba(108,31,201,0.08);display:flex;align-items:center">
+      <div style="flex:1;display:flex;justify-content:space-evenly">${navLeft}</div>
+      <div style="width:72px;flex-shrink:0"></div>
+      <div style="flex:1;display:flex;justify-content:space-evenly">${navRight}</div>
+    </nav>
+    <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);z-index:4000;display:flex;flex-direction:column;align-items:center">
+      <button id="fab-btn" onclick="openFAB()" style="width:56px;height:56px;border-radius:50%;background:${acc.grad};border:4px solid ${C.bg};color:white;font-size:26px;cursor:pointer;box-shadow:0 4px 20px ${acc.primary}66;display:flex;align-items:center;justify-content:center;margin-bottom:4px;flex-shrink:0;line-height:1;font-family:inherit;transition:transform 0.25s">+</button>
+    </div>
+    <input type="file" id="file-input" accept=".pdf,application/pdf" style="display:none" onchange="if(this.files[0])handleFileUpload(this.files[0]);this.value=''"/>
+    <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="if(this.files[0])handleFileUpload(this.files[0]);this.value=''"/>
+  </div>`;
+
+  // bind toggle
+  document.querySelectorAll("[data-toggle]").forEach(el=>{
+    el.onclick=()=>{STATE.isPrivacy=!STATE.isPrivacy;render();};
+  });
+  document.querySelectorAll("[data-bankfilter]").forEach(el=>{
+    el.onclick=()=>{STATE.selectedBankId=el.dataset.bankfilter;render();};
+  });
+  document.querySelectorAll("[data-range]").forEach(el=>{
+    el.onclick=()=>{
+      const rd=RANGE_DATA[el.dataset.range]||RANGE_DATA.month;
+      STATE.timeRange=el.dataset.range;
+      STATE.monthlyData=rd.monthlyData;
+      STATE.finances={...STATE.finances,spent:rd.spent};
+      render();
+    };
+  });
+}
+
+render();
+</script>
+</body>
+</html>
